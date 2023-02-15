@@ -1,0 +1,5 @@
+package read
+
+func readFile() {
+	
+}
