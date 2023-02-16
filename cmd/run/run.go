@@ -15,14 +15,14 @@ type SimulationConfig struct {
 	nodes         map[int]*node.Node
 }
 
-func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[int][]int) *SimulationConfig {
+func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[int][]int, nodesType map[int]string) *SimulationConfig {
 	config := &SimulationConfig{}
 	config.nodeNum = nodeNum
 	config.totalCycle = cycle
 	config.adjacencyList = adjacencyList
 	config.nodes = make(map[int]*node.Node, nodeNum)
 	for i := 0; i < nodeNum; i++ {
-		nodeI, err := node.NewNode(i, "router", []instruction.Instruction{})
+		nodeI, err := node.NewNode(i, nodesType[i], []instruction.Instruction{})
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -37,8 +37,12 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 		// todo トポロジーの変更
 
 		// シミュレートを実行
-		if err := config.SimulateCycle(cycle);err != nil {
+		if err := config.SimulateCycle(cycle); err != nil {
 			return err
+		}
+		// todo 各サイクル後の状態を記録
+		for _, node := range config.nodes {
+			fmt.Printf("%#v\n", node)
 		}
 	}
 	return nil

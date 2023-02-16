@@ -2,11 +2,18 @@ package node
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/instruction"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/routing"
 )
+
+type NodeInit struct {
+	Id           int
+	Type         string
+	Instructions []instruction.Instruction
+}
 
 type Node struct {
 	nodeId           int
@@ -25,6 +32,7 @@ func NewNode(id int, nodeType string, instructions []instruction.Instruction) (*
 	n := &Node{}
 	n.nodeId = id
 	n.nodeType = nodeType
+	n.nodeAlive = true
 	n.nodeState = NodeState{Idle}
 	n.receivedMessages = *message.NewMessageQueue(100)     // todo: the number of initial capacity
 	n.sendingMessages = *message.NewMessageQueue(100)      // todo: the number of initial capacity
@@ -34,7 +42,13 @@ func NewNode(id int, nodeType string, instructions []instruction.Instruction) (*
 	}
 
 	n.RoutingFunction = &routing.RF{}
-	n.RoutingFunction.Init(id, nodeType)
+	packets, err := n.RoutingFunction.Init(nodeType)
+	if err != nil {
+		log.Fatalf("node initialization failed: %v", err)
+	}
+	for _, packet := range packets {
+		n.sendingMessages.Push(*message.NewMessage(id, true, packet))
+	}
 
 	return n, nil
 }
@@ -63,17 +77,22 @@ func (n *Node) processReceivedMessage() error {
 
 	if m.IsValid() {
 		// todo ここでRFが受信メッセージを読んで送信メッセージを生成する
-		flits, err := n.RoutingFunction.GenMessageFromM(m.Data)
+		packets, err := n.RoutingFunction.GenMessageFromM(m.Data)
 		if err != nil {
 			return err
 		}
-		if len(flits) > 0 {
-			for _, flit := range flits {
-				m := *message.NewMessage(n.nodeId, true, flit)
+		if len(packets) > 0 {
+			for _, packet := range packets {
+				m := *message.NewMessage(n.nodeId, true, packet)
 				n.sendingMessages.Push(m)
 			}
 		}
 	}
+	return nil
+}
+func (n *Node) processInstruction() error {
+	// todo processReceivedMessgeのような構成にする
+	// 122-139行目を参考に
 	return nil
 }
 
@@ -106,17 +125,17 @@ func (n *Node) SimulateCycle() error {
 				if err != nil {
 					return err
 				}
-				flits, err := n.RoutingFunction.GenMessageFromI(instruction.Data)
+				packets, err := n.RoutingFunction.GenMessageFromI(instruction.Data)
 				if err != nil {
 					return err
 				}
-				if len(flits) > 0 {
-					for _, flit := range flits {
-						m := *message.NewMessage(n.nodeId, true, flit)
+				if len(packets) > 0 {
+					for _, packet := range packets {
+						m := *message.NewMessage(n.nodeId, true, packet)
 						n.sendingMessages.Push(m)
 					}
+					n.nodeState.transit()
 				}
-				n.nodeState.transit()
 			} else if !n.sendingMessages.IsEmpty() {
 				// 送信
 				if err := n.send(); err != nil {

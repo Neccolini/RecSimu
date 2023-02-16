@@ -1,10 +1,10 @@
 package message
 
-type Flit []byte
+type Packet []byte
 type Message struct {
 	id    int
 	valid bool
-	Data  Flit
+	Data  Packet
 }
 
 func NewMessage(id int, valid bool, data []byte) *Message {
