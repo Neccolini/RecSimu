@@ -55,20 +55,23 @@ func (n *Node) Alive() bool {
 }
 
 func (n *Node) processReceivedMessage() error {
-	message, err := n.receivedMessages.Front()
+	m, err := n.receivedMessages.Front()
 	if err != nil {
 		return err
 	}
 	n.receivedMessages.Pop()
 
-	if message.IsValid() {
+	if m.IsValid() {
 		// todo ここでRFが受信メッセージを読んで送信メッセージを生成する
-		nextMessage, err := n.RoutingFunction.GenMessageFromM(message)
+		flits, err := n.RoutingFunction.GenMessageFromM(m.Data)
 		if err != nil {
 			return err
 		}
-		if nextMessage.IsValid() {
-			n.sendingMessages.Push(nextMessage)
+		if len(flits) > 0 {
+			for _, flit := range flits {
+				m := *message.NewMessage(n.nodeId, true, flit)
+				n.sendingMessages.Push(m)
+			}
 		}
 	}
 	return nil
@@ -103,12 +106,15 @@ func (n *Node) SimulateCycle() error {
 				if err != nil {
 					return err
 				}
-				message, err := n.RoutingFunction.GenMessageFromI(instruction)
+				flits, err := n.RoutingFunction.GenMessageFromI(instruction.Data)
 				if err != nil {
 					return err
 				}
-				if message.IsValid() {
-					n.sendingMessages.Push(message)
+				if len(flits) > 0 {
+					for _, flit := range flits {
+						m := *message.NewMessage(n.nodeId, true, flit)
+						n.sendingMessages.Push(m)
+					}
 				}
 				n.nodeState.transit()
 			} else if !n.sendingMessages.IsEmpty() {

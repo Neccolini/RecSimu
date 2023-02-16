@@ -1,9 +1,10 @@
 package message
 
+type Flit []byte
 type Message struct {
 	id    int
 	valid bool
-	data  []byte
+	Data  Flit
 }
 
 func NewMessage(id int, valid bool, data []byte) *Message {
@@ -11,7 +12,7 @@ func NewMessage(id int, valid bool, data []byte) *Message {
 }
 
 func (m *Message) IsEmpty() bool {
-	return len(m.data) == 0
+	return len(m.Data) == 0
 }
 
 func (m *Message) Id() int {
@@ -28,6 +29,6 @@ func (m *Message) Invalidate() error {
 }
 
 func (m *Message) Clear() error {
-	m.data = []byte{}
+	m.Data = []byte{}
 	return nil
 }
