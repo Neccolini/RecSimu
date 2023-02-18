@@ -18,12 +18,14 @@ const (
 type RF struct {
 	id       int
 	nodeType string
+	joined bool
 	table    map[int][]int
 }
+
 type Packet struct {
-	id     int
-	distId int
-	data   string
+	Id     int
+	DistId int
+	Data   string
 }
 
 func (r *RF) Init(nodeType string) ([][]byte, error) {
@@ -38,13 +40,23 @@ func (r *RF) Init(nodeType string) ([][]byte, error) {
 
 		p := Packet{r.id, BroadCastId, "preq"}
 		return [][]byte{p.Serialize()}, nil
-	} else {
-		r.id = CoordinatorId
 	}
+
+	r.id = CoordinatorId
 	return nil, nil
 }
 
 func (r *RF) GenMessageFromM(received []byte) ([][]byte, error) {
+	packet := DeserializeFrom(received)
+	if packet.DistId != r.id && packet.DistId != BroadCastId {
+		return nil, nil
+	}
+	if r.nodeType == Coordinator {
+		if packet.Data == "preq" {
+			reply := Packet {r.id, packet.Id, "pack"}
+			return [][]byte{reply.Serialize()}, nil
+		}
+	}
 	return nil, nil
 }
 
@@ -58,4 +70,12 @@ func (p *Packet) Serialize() []byte {
 		log.Fatalf("error during packet serialization: %v", err)
 	}
 	return jsonData
+}
+
+func DeserializeFrom(data []byte) Packet {
+	var packet Packet
+	if err := json.Unmarshal(data, &packet); err != nil {
+		log.Fatalf("error during packet deserialization %v", err)
+	}
+	return packet
 }

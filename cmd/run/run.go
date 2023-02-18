@@ -41,32 +41,35 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 			return err
 		}
 		// todo 各サイクル後の状態を記録
+		fmt.Printf("cycle %d\n", cycle)
 		for _, node := range config.nodes {
-			fmt.Printf("%#v\n", node)
+			fmt.Println(node.String())
 		}
 	}
 	return nil
 }
 
 func (config *SimulationConfig) SimulateCycle(cycle int) error {
-	// ノードごとにシミュレート
+	// ノードごとに送信
 	for _, node := range config.nodes {
-		id := node.Id()
-
-		if err := node.SimulateCycle(); err != nil {
-			return fmt.Errorf("error during node %d: %w", id, err)
-		}
+		node.CycleSend()
 	}
-
+	// 衝突したらどうにかする（ランダムで一つ選んで他は待機＋再送信）
 	// メッセージを配信
 	for _, node := range config.nodes {
-		if !node.SendMessage.IsEmpty() {
+		if !node.SendingMessage.IsEmpty() {
 			// メッセージをブロードキャストする
 			for _, adjacentNodeId := range config.adjacencyList[node.Id()] {
-				config.nodes[adjacentNodeId].Receive(node.SendMessage)
+				config.nodes[adjacentNodeId].Receive(node.SendingMessage)
 			}
-			config.nodes[node.Id()].SendMessage.Clear()
+			config.nodes[node.Id()].SendingMessage.Clear()
 		}
 	}
+
+	for _, node := range config.nodes {
+		node.CycleReceive()
+		node.SimulateCycle()
+	}
+
 	return nil
 }

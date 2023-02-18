@@ -4,7 +4,6 @@ Copyright © 2023 Neccolini <shun11202991@gmail.com>
 package cmd
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/run"
@@ -28,11 +27,10 @@ to quickly create a Cobra application.`,
 		}
 		m := map[int][]int{0: {1}, 1: {0}}
 		l := map[int]string{0: "Coordinator", 1: "Router"}
-		config := run.NewSimulationConfig(2, 2, m, l)
+		config := run.NewSimulationConfig(2, 10, m, l)
 
 		config.Simulate("test")
 
-		fmt.Println("OK")
 
 	},
 }
