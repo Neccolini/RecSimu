@@ -5,7 +5,9 @@ import (
 	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/instruction"
+	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/node"
+	"github.com/Neccolini/RecSimu/cmd/random"
 )
 
 type SimulationConfig struct {
@@ -50,20 +52,35 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 }
 
 func (config *SimulationConfig) SimulateCycle(cycle int) error {
-	// ノードごとに送信
+	messageMap := map[int][]message.Message{}
+
 	for _, node := range config.nodes {
+		// ノードごとに送信
 		node.CycleSend()
-	}
-	// 衝突したらどうにかする（ランダムで一つ選んで他は待機＋再送信）
-	// メッセージを配信
-	for _, node := range config.nodes {
+
+		// メッセージを隣接ノードにブロードキャスト
 		if !node.SendingMessage.IsEmpty() {
-			// メッセージをブロードキャストする
-			for _, adjacentNodeId := range config.adjacencyList[node.Id()] {
-				config.nodes[adjacentNodeId].Receive(node.SendingMessage)
+			for _, aNodeId := range config.adjacencyList[node.Id()] {
+				if config.nodes[aNodeId].State().IsIdle() {
+					messageMap[aNodeId] = append(messageMap[aNodeId], node.SendingMessage)
+				} else {
+					config.nodes[node.Id()].Wait() // 送信に失敗したので待機モード
+				}
 			}
-			config.nodes[node.Id()].SendingMessage.Clear()
 		}
+	}
+
+	// 送信メッセージを集計
+	for rNodeId, msgs := range messageMap {
+		if len(msgs) > 0 {
+			successMsg := random.RandomChoice(msgs)   // 複数あった場合，一つランダムで選択
+			config.nodes[rNodeId].Receive(successMsg) // 受信
+		for _, failedMsg := range msgs {
+			if failedMsg.Id() != successMsg.Id() {
+			config.nodes[failedMsg.Id()].Wait() // 送信に失敗したので待機モード
+			}
+		}
+	}
 	}
 
 	for _, node := range config.nodes {
