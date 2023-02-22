@@ -7,12 +7,11 @@ import (
 )
 
 type Input struct {
-	NodeNum       int `json:"num"`
-	Cycle         int `json:"cycles"`
-	AdjacencyList map[string][]string  `json:"adjacencies"`
-	NodesType     map[string]string `json:"nodes"`
+	NodeNum       int                 `json:"num"`
+	Cycle         int                 `json:"cycles"`
+	AdjacencyList map[string][]string `json:"adjacencies"`
+	NodesType     map[string]string   `json:"nodes"`
 }
-
 
 func ReadJsonFile(path string) Input {
 	byteArray, err := ioutil.ReadFile(path)

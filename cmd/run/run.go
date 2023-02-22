@@ -11,10 +11,10 @@ import (
 )
 
 type SimulationConfig struct {
-	nodeNum       int
-	totalCycle    int
-	adjacencyList map[string][]string
-	nodes         map[string]*node.Node
+	nodeNum         int
+	totalCycle      int
+	adjacencyList   map[string][]string
+	nodes           map[string]*node.Node
 	instructionList []instruction.Instruction
 }
 

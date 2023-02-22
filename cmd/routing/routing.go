@@ -13,7 +13,7 @@ const (
 )
 
 type RF struct {
-	id  string
+	id       string
 	nodeType string
 	joined   bool
 	table    map[int][]int
