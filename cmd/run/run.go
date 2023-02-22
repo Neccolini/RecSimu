@@ -2,34 +2,32 @@ package run
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/instruction"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/node"
 	"github.com/Neccolini/RecSimu/cmd/random"
+	"github.com/Neccolini/RecSimu/cmd/routing"
 )
 
 type SimulationConfig struct {
-	nodeNum       int
-	totalCycle    int
-	adjacencyList map[int][]int
-	nodes         map[int]*node.Node
+	nodeNum         int
+	totalCycle      int
+	adjacencyList   map[string][]string
+	nodes           map[string]*node.Node
+	instructionList []instruction.Instruction
 }
 
-func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[int][]int, nodesType map[int]string) *SimulationConfig {
+func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string) *SimulationConfig {
 	config := &SimulationConfig{}
 	config.nodeNum = nodeNum
 	config.totalCycle = cycle
 	config.adjacencyList = adjacencyList
-	config.nodes = make(map[int]*node.Node, nodeNum)
-	for i := 0; i < nodeNum; i++ {
-		nodeI, err := node.NewNode(i, nodesType[i], []instruction.Instruction{})
-		if err != nil {
-			log.Fatal(err)
-		}
-		config.nodes[i] = nodeI
+	config.nodes = make(map[string]*node.Node, nodeNum)
+	for id, nType := range nodesType {
+		config.nodes[id], _ = node.NewNode(id, nType, []instruction.Instruction{}) // todo エラー処理？
 	}
+
 	return config
 }
 
@@ -52,7 +50,7 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 }
 
 func (config *SimulationConfig) SimulateCycle(cycle int) error {
-	messageMap := map[int][]message.Message{}
+	messageMap := map[string][]message.Message{}
 
 	for _, node := range config.nodes {
 		// ノードごとに送信
@@ -61,18 +59,19 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 			continue
 		}
 		// Broadcastの場合
-		if node.SendingMessage.ToId() == -1 {
+		if node.SendingMessage.ToId() == routing.BroadCastId {
+			success := false
 			for _, aNodeId := range config.adjacencyList[node.Id()] {
-				success := false
 				if config.nodes[aNodeId].State().IsIdle() && config.nodes[aNodeId].IsJoined() {
 					success = true
 					messageMap[aNodeId] = append(messageMap[aNodeId], node.SendingMessage)
 				}
-				if !success {
-					config.nodes[node.Id()].Wait()
-				}
 			}
-		} else {
+			if !success {
+				fmt.Println(node.Id())
+				config.nodes[node.Id()].Wait()
+			}
+		} else { // Broadcastでない場合
 			for _, aNodeId := range config.adjacencyList[node.Id()] {
 				if config.nodes[aNodeId].State().IsIdle() {
 					messageMap[aNodeId] = append(messageMap[aNodeId], node.SendingMessage)

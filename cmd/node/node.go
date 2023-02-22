@@ -9,13 +9,13 @@ import (
 )
 
 type NodeInit struct {
-	Id           int
+	Id           string
 	Type         string
 	Instructions []instruction.Instruction
 }
 
 type Node struct {
-	nodeId    int
+	nodeId    string
 	nodeType  string
 	nodeAlive bool
 	joined    bool
@@ -31,7 +31,7 @@ type Node struct {
 	RoutingFunction routing.RoutingFunction
 }
 
-func NewNode(id int, nodeType string, instructions []instruction.Instruction) (*Node, error) {
+func NewNode(id string, nodeType string, instructions []instruction.Instruction) (*Node, error) {
 	n := &Node{}
 	n.nodeId = id
 	n.nodeType = nodeType
@@ -46,7 +46,7 @@ func NewNode(id int, nodeType string, instructions []instruction.Instruction) (*
 
 	n.RoutingFunction = &routing.RF{}
 	// 開始メッセージ生成
-	packets, distId := n.RoutingFunction.Init(nodeType)
+	packets, distId := n.RoutingFunction.Init(id, nodeType)
 
 	for _, packet := range packets {
 		n.sendMessages.Push(*message.NewMessage(id, distId, packet))
@@ -55,7 +55,7 @@ func NewNode(id int, nodeType string, instructions []instruction.Instruction) (*
 	return n, nil
 }
 
-func (n *Node) Id() int {
+func (n *Node) Id() string {
 	return n.nodeId
 }
 
@@ -183,7 +183,7 @@ func (n *Node) Receive(m message.Message) {
 
 func (n *Node) Wait() error {
 	if !n.nodeState.IsSending() {
-		return fmt.Errorf("Node %d is not sending a message", n.nodeId)
+		return fmt.Errorf("Node %s is not sending a message", n.nodeId)
 	}
 
 	n.nodeState.Wait()
@@ -210,10 +210,17 @@ func (n *Node) String() string {
 		packetInfo += fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
 	} else if n.nodeState.IsSending() {
 		state = "sending"
+		packetInfo = ", packet to: " + fmt.Sprint(n.SendingMessage.ToId())
+
 		totalCycles := n.SendingMessage.Cycles()
 		curCycles := totalCycles - n.nodeState.sending.remaining
-		packetInfo = fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
+		packetInfo += fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
+	} else if n.nodeState.IsWaiting() {
+		state = "waiting"
+		totalCycles := 5
+		curCycles := totalCycles - n.nodeState.waiting.remaining
+		packetInfo += fmt.Sprintf(", cycle: %d/%d", curCycles, totalCycles)
 	}
 
-	return fmt.Sprintf("id: %d, type: %s, condition: %s, state: %s%s", n.nodeId, n.nodeType, condition, state, packetInfo)
+	return fmt.Sprintf("id: %s, type: %s, condition: %s, state: %s%s", n.nodeId, n.nodeType, condition, state, packetInfo)
 }

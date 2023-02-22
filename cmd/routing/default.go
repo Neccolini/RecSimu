@@ -1,3 +1,3 @@
 package routing
 
-type DefaultRF struct {}
+type DefaultRF struct{}
