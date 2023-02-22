@@ -1,8 +1,8 @@
 package routing
 
 type RoutingFunction interface {
-	Init(nodeType string) ([][]byte, int)
-	GenMessageFromM(packet []byte) ([][]byte, int)
-	GenMessageFromI(i []byte) ([][]byte, int)
+	Init(id string, nodeType string) ([][]byte, string)
+	GenMessageFromM(packet []byte) ([][]byte, string)
+	GenMessageFromI(i []byte) ([][]byte, string)
 	IsJoined() bool
 }

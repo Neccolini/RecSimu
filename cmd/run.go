@@ -6,6 +6,7 @@ package cmd
 import (
 	"log"
 
+	"github.com/Neccolini/RecSimu/cmd/read"
 	"github.com/Neccolini/RecSimu/cmd/run"
 	"github.com/spf13/cobra"
 )
@@ -21,13 +22,12 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		_, err := cmd.Flags().GetString("config")
+		filepath, err := cmd.Flags().GetString("input")
 		if err != nil {
 			log.Fatal(err)
 		}
-		m := map[int][]int{0: {1, 2}, 1: {0}, 2: {0}}
-		l := map[int]string{0: "Coordinator", 1: "Router", 2: "Router"}
-		config := run.NewSimulationConfig(3, 20, m, l)
+		input := read.ReadJsonFile(filepath)
+		config := run.NewSimulationConfig(input.NodeNum, input.Cycle, input.AdjacencyList, input.NodesType)
 
 		config.Simulate("test")
 
@@ -37,7 +37,8 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.Flags().StringP("config", "c", "", "configuration file")
+	runCmd.Flags().StringP("input", "i", "", "input configuration file")
+	runCmd.Flags().StringP("output", "o", "", "output file")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command

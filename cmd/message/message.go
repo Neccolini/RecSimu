@@ -4,15 +4,15 @@ const bytePerFlit = 8 // todo
 
 type Packet []byte
 type Message struct {
-	id     int
-	toId   int
+	id     string
+	toId   string
 	valid  bool
 	ready  bool
 	cycles int
 	Data   Packet
 }
 
-func NewMessage(id int, toId int, data []byte) *Message {
+func NewMessage(id string, toId string, data []byte) *Message {
 	cycles := (len(data) + bytePerFlit) / bytePerFlit
 	return &Message{id, toId, true, false, cycles, data}
 }
@@ -21,11 +21,11 @@ func (m *Message) IsEmpty() bool {
 	return len(m.Data) == 0
 }
 
-func (m *Message) Id() int {
+func (m *Message) Id() string {
 	return m.id
 }
 
-func (m *Message) ToId() int {
+func (m *Message) ToId() string {
 	return m.toId
 }
 func (m *Message) Cycles() int {
