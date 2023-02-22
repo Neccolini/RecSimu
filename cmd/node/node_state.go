@@ -18,17 +18,17 @@ func (n *NodeState) Next() error {
 	// receiving
 	if n.receiving.state {
 		n.receiving.remaining--
-		if n.receiving.remaining < 0 {
+		if n.receiving.remaining <= 0 {
 			n.receiving.state = false
 		}
 	} else if n.sending.state {
 		n.sending.remaining--
-		if n.sending.remaining < 0 {
+		if n.sending.remaining <= 0 {
 			n.sending.state = false
 		}
 	} else if n.waiting.state {
 		n.waiting.remaining--
-		if n.waiting.remaining < 0 {
+		if n.waiting.remaining <= 0 {
 			n.waiting.state = false
 		}
 	}

@@ -25,12 +25,11 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			log.Fatal(err)
 		}
-		m := map[int][]int{0: {1}, 1: {0}}
-		l := map[int]string{0: "Coordinator", 1: "Router"}
-		config := run.NewSimulationConfig(2, 10, m, l)
+		m := map[int][]int{0: {1, 2}, 1: {0}, 2: {0}}
+		l := map[int]string{0: "Coordinator", 1: "Router", 2: "Router"}
+		config := run.NewSimulationConfig(3, 20, m, l)
 
 		config.Simulate("test")
-
 
 	},
 }

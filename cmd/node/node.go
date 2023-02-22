@@ -2,7 +2,6 @@ package node
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/instruction"
 	"github.com/Neccolini/RecSimu/cmd/message"
@@ -19,6 +18,7 @@ type Node struct {
 	nodeId    int
 	nodeType  string
 	nodeAlive bool
+	joined    bool
 	nodeState NodeState
 
 	receiveMessages message.MessageQueue
@@ -46,12 +46,10 @@ func NewNode(id int, nodeType string, instructions []instruction.Instruction) (*
 
 	n.RoutingFunction = &routing.RF{}
 	// 開始メッセージ生成
-	packets, err := n.RoutingFunction.Init(nodeType)
-	if err != nil {
-		log.Fatalf("node initialization failed: %v", err)
-	}
+	packets, distId := n.RoutingFunction.Init(nodeType)
+
 	for _, packet := range packets {
-		n.sendMessages.Push(*message.NewMessage(id, true, packet))
+		n.sendMessages.Push(*message.NewMessage(id, distId, packet))
 	}
 
 	return n, nil
@@ -73,6 +71,9 @@ func (n *Node) Alive() bool {
 	return n.nodeAlive
 }
 
+func (n *Node) IsJoined() bool {
+	return n.RoutingFunction.IsJoined()
+}
 func (n *Node) processInstruction() error {
 	i, err := n.instructions.Front()
 	if err != nil {
@@ -80,13 +81,10 @@ func (n *Node) processInstruction() error {
 	}
 	n.instructions.Pop()
 
-	packets, err := n.RoutingFunction.GenMessageFromI(i.Data)
-	if err != nil {
-		return err
-	}
+	packets, distId := n.RoutingFunction.GenMessageFromI(i.Data)
 
 	for _, packet := range packets {
-		m := *message.NewMessage(n.nodeId, true, packet)
+		m := *message.NewMessage(n.nodeId, distId, packet)
 		n.sendMessages.Push(m)
 	}
 	return nil
@@ -126,12 +124,10 @@ func (n *Node) receiveProcess() bool {
 func (n *Node) receiveComplete() bool {
 	// 受信中のメッセージが存在するが，ノードの状態は受信中じゃない -> 受信完了
 	if !n.ReceivingMessage.IsEmpty() && !n.nodeState.IsReceiving() {
-		packets, err := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
-		if err != nil {
-			return false // todo エラー処理必要？
-		}
+		packets, distId := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
+
 		for _, packet := range packets {
-			m := *message.NewMessage(n.nodeId, true, packet)
+			m := *message.NewMessage(n.nodeId, distId, packet)
 			n.sendMessages.Push(m)
 		}
 		// 現在のメッセージを破棄
@@ -207,11 +203,11 @@ func (n *Node) String() string {
 	packetInfo := ""
 	if n.nodeState.IsReceiving() {
 		state = "receiving"
-		packetInfo = ", packet from: " + fmt.Sprint(n.SendingMessage.Id())
+		packetInfo = ", packet from: " + fmt.Sprint(n.ReceivingMessage.Id())
 
 		totalCycles := n.ReceivingMessage.Cycles()
 		curCycles := totalCycles - n.nodeState.receiving.remaining
-		packetInfo = fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
+		packetInfo += fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
 	} else if n.nodeState.IsSending() {
 		state = "sending"
 		totalCycles := n.SendingMessage.Cycles()
