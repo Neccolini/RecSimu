@@ -18,7 +18,7 @@ const (
 type RF struct {
 	id       int
 	nodeType string
-	joined bool
+	joined   bool
 	table    map[int][]int
 }
 
@@ -28,7 +28,7 @@ type Packet struct {
 	Data   string
 }
 
-func (r *RF) Init(nodeType string) ([][]byte, error) {
+func (r *RF) Init(nodeType string) ([][]byte, int) {
 	r.nodeType = nodeType
 	if nodeType == Router {
 		// parent request 送信
@@ -39,29 +39,34 @@ func (r *RF) Init(nodeType string) ([][]byte, error) {
 		r.id = int(randomId.Int64())
 
 		p := Packet{r.id, BroadCastId, "preq"}
-		return [][]byte{p.Serialize()}, nil
+		return [][]byte{p.Serialize()}, BroadCastId
 	}
 
 	r.id = CoordinatorId
-	return nil, nil
+	r.joined = true
+	return nil, 0
 }
 
-func (r *RF) GenMessageFromM(received []byte) ([][]byte, error) {
+func (r *RF) IsJoined() bool {
+	return r.joined
+}
+
+func (r *RF) GenMessageFromM(received []byte) ([][]byte, int) {
 	packet := DeserializeFrom(received)
 	if packet.DistId != r.id && packet.DistId != BroadCastId {
-		return nil, nil
+		return nil, 0
 	}
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
-			reply := Packet {r.id, packet.Id, "pack"}
-			return [][]byte{reply.Serialize()}, nil
+			reply := Packet{r.id, packet.Id, "pack"}
+			return [][]byte{reply.Serialize()}, packet.Id
 		}
 	}
-	return nil, nil
+	return nil, 0
 }
 
-func (r *RF) GenMessageFromI(inst []byte) ([][]byte, error) {
-	return nil, nil
+func (r *RF) GenMessageFromI(inst []byte) ([][]byte, int) {
+	return nil, 0
 }
 
 func (p *Packet) Serialize() []byte {
