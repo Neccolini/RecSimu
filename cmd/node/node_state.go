@@ -1,6 +1,11 @@
 package node
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+
+	"github.com/Neccolini/RecSimu/cmd/random"
+)
 
 type NodeState struct {
 	sending   State
@@ -69,11 +74,10 @@ func (n *NodeState) RecieveStart(cycles int) error {
 	return nil
 }
 
-func (n *NodeState) Wait() error {
-	// 一定時間待機してから再送信する．
-	// 最初は固定時間にして，あとでランダムを選択できるように
+func (n *NodeState) Wait(retries int) error {
+	// ランダム時間待機してから再送信する．
 	n.waiting.state = true
-	n.waiting.remaining = 5
+	n.waiting.remaining = random.RandomInt(0, int(math.Pow(2, float64(retries))))
 	return nil
 }
 
