@@ -29,6 +29,8 @@ type Node struct {
 	ReceivingMessage    message.Message
 	CommunicatingNodeId string
 	RoutingFunction     routing.RoutingFunction
+
+	waitRetries int
 }
 
 func NewNode(id string, nodeType string, instructions []instruction.Instruction) (*Node, error) {
@@ -181,6 +183,7 @@ func (n *Node) SimulateCycle() error {
 		}
 		// communicating nodeを設定
 		n.CommunicatingNodeId = n.SendingMessage.ToId()
+		n.waitRetries = 0
 	}
 	n.SendingMessage.Clear() // 送信中メッセージは削除
 
@@ -206,8 +209,13 @@ func (n *Node) Wait() error {
 	if !n.nodeState.IsSending() {
 		return fmt.Errorf("Node %s is not sending a message", n.nodeId)
 	}
-
-	n.nodeState.Wait()
+	if n.waitRetries >= 10 {
+		// 送信失敗...
+		n.nodeState.ResetAll()
+		return nil
+	}
+	n.waitRetries++
+	n.nodeState.Wait(n.waitRetries)
 	n.nodeState.sending = State{false, 0} // send中止
 
 	return nil
@@ -247,9 +255,8 @@ func (n *Node) String() string {
 		packetInfo += fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
 	} else if n.nodeState.IsWaiting() {
 		state = "waiting"
-		totalCycles := 5
-		curCycles := totalCycles - n.nodeState.waiting.remaining
-		packetInfo += fmt.Sprintf(", cycle: %d/%d", curCycles, totalCycles)
+		curCycles := n.nodeState.waiting.remaining
+		packetInfo += fmt.Sprintf(",remaining wait cycle: %d", curCycles)
 	}
 
 	return fmt.Sprintf("id: %s, type: %s, condition: %s, state: %s%s", n.nodeId, n.nodeType, condition, state, packetInfo)
