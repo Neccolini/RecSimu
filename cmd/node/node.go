@@ -216,7 +216,7 @@ func (n *Node) Wait() error {
 func (n *Node) endCommunication() {
 	if n.CommunicatingNodeId == "" {
 		n.nodeState.ResetCommunication()
-	} else if n.nodeState.receiving.remaining == 0 ||
+	} else if n.nodeState.receiving.remaining == 0 &&
 		n.nodeState.sending.remaining == 0 {
 		n.CommunicatingNodeId = ""
 	}
