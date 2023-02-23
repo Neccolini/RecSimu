@@ -43,6 +43,10 @@ func (r *RF) IsJoined() bool {
 	return r.joined
 }
 
+func (r *RF) Reset() {
+	
+}
+
 func (r *RF) GenMessageFromM(received []byte) ([][]byte, string) {
 	packet := DeserializeFrom(received)
 	if packet.DistId != r.id && packet.DistId != BroadCastId {

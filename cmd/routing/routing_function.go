@@ -5,4 +5,5 @@ type RoutingFunction interface {
 	GenMessageFromM(packet []byte) ([][]byte, string)
 	GenMessageFromI(i []byte) ([][]byte, string)
 	IsJoined() bool
+	Reset()
 }

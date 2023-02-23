@@ -25,10 +25,10 @@ type Node struct {
 	sendMessages    message.MessageQueue
 	instructions    instruction.InstructionQueue
 
-	SendingMessage   message.Message
-	ReceivingMessage message.Message
-
-	RoutingFunction routing.RoutingFunction
+	SendingMessage      message.Message
+	ReceivingMessage    message.Message
+	CommunicatingNodeId string
+	RoutingFunction     routing.RoutingFunction
 }
 
 func NewNode(id string, nodeType string, instructions []instruction.Instruction) (*Node, error) {
@@ -43,16 +43,20 @@ func NewNode(id string, nodeType string, instructions []instruction.Instruction)
 	for _, inst := range instructions {
 		n.instructions.Push(inst)
 	}
-
 	n.RoutingFunction = &routing.RF{}
-	// 開始メッセージ生成
-	packets, distId := n.RoutingFunction.Init(id, nodeType)
-
-	for _, packet := range packets {
-		n.sendMessages.Push(*message.NewMessage(id, distId, packet))
-	}
+	n.Init()
 
 	return n, nil
+}
+
+func (n *Node) Init() error {
+	// 開始メッセージ生成
+	packets, distId := n.RoutingFunction.Init(n.nodeId, n.nodeType)
+
+	for _, packet := range packets {
+		n.sendMessages.Push(*message.NewMessage(n.nodeId, distId, packet))
+	}
+	return nil
 }
 
 func (n *Node) Id() string {
@@ -74,6 +78,19 @@ func (n *Node) Alive() bool {
 func (n *Node) IsJoined() bool {
 	return n.RoutingFunction.IsJoined()
 }
+
+func (n *Node) Reset() error {
+	n.nodeAlive = false
+	n.joined = false
+	n.receiveMessages.Clear()
+	n.sendMessages.Clear()
+	n.SendingMessage.Clear()
+	n.ReceivingMessage.Clear()
+	n.RoutingFunction.Reset()
+	n.nodeState.ResetAll()
+	return nil
+}
+
 func (n *Node) processInstruction() error {
 	i, err := n.instructions.Front()
 	if err != nil {
@@ -117,6 +134,7 @@ func (n *Node) receiveProcess() bool {
 	}
 	n.receiveMessages.Pop()
 	n.ReceivingMessage = message
+	n.CommunicatingNodeId = n.ReceivingMessage.Id()
 	n.nodeState.RecieveStart(message.Cycles())
 	return true
 }
@@ -161,6 +179,8 @@ func (n *Node) SimulateCycle() error {
 		if err := n.sendMessages.Pop(); err != nil {
 			return err
 		}
+		// communicating nodeを設定
+		n.CommunicatingNodeId = n.SendingMessage.ToId()
 	}
 	n.SendingMessage.Clear() // 送信中メッセージは削除
 
@@ -174,6 +194,7 @@ func (n *Node) SimulateCycle() error {
 	// 命令を実行
 	n.processInstruction()
 
+	n.endCommunication()
 	return nil
 }
 
@@ -190,6 +211,15 @@ func (n *Node) Wait() error {
 	n.nodeState.sending = State{false, 0} // send中止
 
 	return nil
+}
+
+func (n *Node) endCommunication() {
+	if n.CommunicatingNodeId == "" {
+		n.nodeState.ResetCommunication()
+	} else if n.nodeState.receiving.remaining == 0 ||
+		n.nodeState.sending.remaining == 0 {
+		n.CommunicatingNodeId = ""
+	}
 }
 
 func (n *Node) String() string {

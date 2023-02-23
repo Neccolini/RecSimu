@@ -76,3 +76,20 @@ func (n *NodeState) Wait() error {
 	n.waiting.remaining = 5
 	return nil
 }
+
+func (n *NodeState) ResetAll() error {
+	n.receiving.state = false
+	n.receiving.remaining = 0
+	n.sending.state = false
+	n.sending.remaining = 0
+	n.waiting.state = false
+	n.waiting.remaining = 0
+	return nil
+}
+func (n *NodeState) ResetCommunication() error {
+	n.receiving.state = false
+	n.receiving.remaining = 0
+	n.sending.state = false
+	n.sending.remaining = 0
+	return nil
+}

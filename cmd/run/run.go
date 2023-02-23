@@ -7,6 +7,7 @@ import (
 	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/node"
 	"github.com/Neccolini/RecSimu/cmd/random"
+	"github.com/Neccolini/RecSimu/cmd/read"
 	"github.com/Neccolini/RecSimu/cmd/routing"
 )
 
@@ -15,15 +16,17 @@ type SimulationConfig struct {
 	totalCycle      int
 	adjacencyList   map[string][]string
 	nodes           map[string]*node.Node
-	instructionList []instruction.Instruction
+	// instructionList []instruction.Instruction
+	recInfo map[int][]read.RecInfo
 }
 
-func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string) *SimulationConfig {
+func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo) *SimulationConfig {
 	config := &SimulationConfig{}
 	config.nodeNum = nodeNum
 	config.totalCycle = cycle
 	config.adjacencyList = adjacencyList
 	config.nodes = make(map[string]*node.Node, nodeNum)
+	config.recInfo = recInfo
 	for id, nType := range nodesType {
 		config.nodes[id], _ = node.NewNode(id, nType, []instruction.Instruction{}) // todo エラー処理？
 	}
@@ -35,7 +38,9 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 	// サイクルごとのシミュレートを実行
 	for cycle := 1; cycle <= config.totalCycle; cycle++ {
 		// todo トポロジーの変更
-
+		for _, info := range config.recInfo[cycle] {
+			config.changeNetwork(info)
+		}
 		// シミュレートを実行
 		if err := config.SimulateCycle(cycle); err != nil {
 			return err
@@ -53,6 +58,9 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 	messageMap := map[string][]message.Message{}
 
 	for _, node := range config.nodes {
+		if !node.Alive() {
+			continue
+		}
 		// ノードごとに送信
 		node.CycleSend()
 		if node.SendingMessage.IsEmpty() {
@@ -96,6 +104,9 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 	}
 
 	for _, node := range config.nodes {
+		if !node.Alive() {
+			continue
+		}
 		node.CycleReceive()
 		node.SimulateCycle()
 	}
