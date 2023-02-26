@@ -209,10 +209,8 @@ func (n *Node) Wait() error {
 	if !n.nodeState.IsSending() {
 		return fmt.Errorf("Node %s is not sending a message", n.nodeId)
 	}
-	if n.waitRetries >= 10 {
-		// 送信失敗...
-		n.nodeState.ResetAll()
-		return nil
+	if n.waitRetries >= 8 {
+		n.waitRetries--
 	}
 	n.waitRetries++
 	n.nodeState.Wait(n.waitRetries)

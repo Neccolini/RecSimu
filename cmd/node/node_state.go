@@ -77,7 +77,7 @@ func (n *NodeState) RecieveStart(cycles int) error {
 func (n *NodeState) Wait(retries int) error {
 	// ランダム時間待機してから再送信する．
 	n.waiting.state = true
-	n.waiting.remaining = random.RandomInt(0, int(math.Pow(2, float64(retries))))
+	n.waiting.remaining = random.RandomInt(1, int(math.Pow(2, float64(retries))))
 	return nil
 }
 

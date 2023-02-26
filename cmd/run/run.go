@@ -12,10 +12,10 @@ import (
 )
 
 type SimulationConfig struct {
-	nodeNum         int
-	totalCycle      int
-	adjacencyList   map[string][]string
-	nodes           map[string]*node.Node
+	nodeNum       int
+	totalCycle    int
+	adjacencyList map[string][]string
+	nodes         map[string]*node.Node
 	// instructionList []instruction.Instruction
 	recInfo map[int][]read.RecInfo
 }
@@ -76,14 +76,13 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 				}
 			}
 			if !success {
-				fmt.Println(node.Id())
 				config.nodes[node.Id()].Wait()
 			}
 		} else { // Broadcastでない場合
 			for _, aNodeId := range config.adjacencyList[node.Id()] {
 				if config.nodes[aNodeId].State().IsIdle() {
 					messageMap[aNodeId] = append(messageMap[aNodeId], node.SendingMessage)
-				} else if aNodeId == node.SendingMessage.ToId() { // 送信先は一つのはずなのに、そうでない方への送信が失敗すると大気モードに入るのはおかしい
+				} else if aNodeId == node.SendingMessage.ToId() {
 					config.nodes[node.Id()].Wait() // 送信に失敗したので待機モード
 				}
 			}

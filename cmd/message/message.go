@@ -1,10 +1,12 @@
 package message
 
-const bytePerFlit = 8 // todo
+import "github.com/Neccolini/RecSimu/cmd/routing"
+
+const bytePerFlit = routing.BytePerFlit
 
 type Packet []byte
 type Message struct {
-	id     string
+	fromId string
 	toId   string
 	valid  bool
 	ready  bool
@@ -12,9 +14,9 @@ type Message struct {
 	Data   Packet
 }
 
-func NewMessage(id string, toId string, data []byte) *Message {
+func NewMessage(fromId string, toId string, data []byte) *Message {
 	cycles := (len(data) + bytePerFlit) / bytePerFlit
-	return &Message{id, toId, true, false, cycles, data}
+	return &Message{fromId, toId, true, false, cycles, data}
 }
 
 func (m *Message) IsEmpty() bool {
@@ -22,7 +24,7 @@ func (m *Message) IsEmpty() bool {
 }
 
 func (m *Message) Id() string {
-	return m.id
+	return m.fromId
 }
 
 func (m *Message) ToId() string {
