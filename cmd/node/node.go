@@ -209,7 +209,7 @@ func (n *Node) Wait() error {
 	if !n.nodeState.IsSending() {
 		return fmt.Errorf("Node %s is not sending a message", n.nodeId)
 	}
-	if n.waitRetries >= 8 {
+	if n.waitRetries >= 6 {
 		n.waitRetries--
 	}
 	n.waitRetries++

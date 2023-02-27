@@ -6,6 +6,7 @@ package cmd
 import (
 	"log"
 
+	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/read"
 	"github.com/Neccolini/RecSimu/cmd/run"
 	"github.com/spf13/cobra"
@@ -26,9 +27,15 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			log.Fatal(err)
 		}
+		debugBoolean, err := cmd.Flags().GetBool("debug")
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		input := read.ReadJsonFile(filepath)
 		config := run.NewSimulationConfig(input.NodeNum, input.Cycle, input.AdjacencyList, input.NodesType, input.ReconfigureInfo)
-
+		debug.Debug.On = debugBoolean
+		
 		config.Simulate("test")
 
 	},
@@ -39,6 +46,7 @@ func init() {
 
 	runCmd.Flags().StringP("input", "i", "", "input configuration file")
 	runCmd.Flags().StringP("output", "o", "", "output file")
+	runCmd.Flags().BoolP("debug", "d", false, "debug mode")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command

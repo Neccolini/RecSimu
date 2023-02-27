@@ -1,8 +1,7 @@
 package run
 
 import (
-	"fmt"
-
+	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/instruction"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/node"
@@ -46,9 +45,9 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 			return err
 		}
 		// todo 各サイクル後の状態を記録
-		fmt.Printf("cycle %d\n", cycle)
+		debug.Debug.Printf("cycle %d\n", cycle)
 		for _, node := range config.nodes {
-			fmt.Println(node.String())
+			debug.Debug.Println(node.String())
 		}
 	}
 	return nil

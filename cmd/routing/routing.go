@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
+	"github.com/Neccolini/RecSimu/cmd/debug"
 )
 
 const (
-	BytePerFlit   = 16
+	BytePerFlit   = 32
 	Router        = "Router"
 	Coordinator   = "Coordinator"
 	BroadCastId   = "BroadCast"
@@ -58,6 +60,8 @@ func (r *RF) GenMessageFromM(received []byte) ([][]byte, string) {
 	if packet.NextId != r.id && packet.NextId != BroadCastId {
 		return nil, ""
 	}
+	debug.Debug.Printf("%v\n", packet)
+
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
 			r.table[packet.FromId] = packet.FromId
