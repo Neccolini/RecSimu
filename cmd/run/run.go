@@ -17,8 +17,9 @@ type SimulationConfig struct {
 	adjacencyList map[string][]string
 	nodes         map[string]*node.Node
 	// instructionList []instruction.Instruction
-	recInfo    map[int][]read.RecInfo
-	messageMap map[string][]message.Message
+	recInfo     map[int][]read.RecInfo
+	fromId2ToId map[string][]string // fromId -> toId
+	toId2FromId map[string][]string // toId -> fromId
 }
 
 func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo) *SimulationConfig {
@@ -45,7 +46,7 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 			return err
 		}
 		// todo 各サイクル後の状態を記録
-		debug.Debug.Printf("cycle %d\n", cycle)
+		debug.Debug.Printf("\ncycle %d\n", cycle)
 		for _, node := range config.nodes {
 			debug.Debug.Println(node.String())
 		}
@@ -54,7 +55,8 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 }
 
 func (config *SimulationConfig) SimulateCycle(cycle int) error {
-	config.messageMap = map[string][]message.Message{}
+	config.toId2FromId = map[string][]string{}
+	config.fromId2ToId = map[string][]string{}
 
 	// サイクルの更新
 	for _, node := range config.nodes {
@@ -75,22 +77,8 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 		}
 	}
 
-	// 受信側の処理：複数から送られてきた場合失敗
-	for distId, msgs := range config.messageMap {
-		distNode := config.nodes[distId]
-		if !distNode.IsIdle() && !distNode.IsWaiting() {
-			continue
-		}
-		if len(msgs) == 1 {
-			msg := msgs[0]
-			if !config.nodes[msg.Id()].IsSending() {
-				config.nodes[msg.Id()].SetSending()
-			}
-			if !config.nodes[distId].IsReceiving() {
-				config.nodes[distId].SetReceiving(msg)
-			}
-		}
-	}
+	config.deliverMessages()
+
 	return nil
 }
 
@@ -114,6 +102,32 @@ func (config *SimulationConfig) broadCastMessage(msg message.Message) {
 	}
 
 	for _, adjacentId := range config.adjacencyList[node.Id()] {
-		config.messageMap[adjacentId] = append(config.messageMap[adjacentId], msg)
+		if !config.nodes[adjacentId].IsIdle() && !config.nodes[adjacentId].IsWaiting() {
+			continue
+		}
+		config.toId2FromId[adjacentId] = append(config.toId2FromId[adjacentId], node.Id())
+		config.fromId2ToId[node.Id()] = append(config.fromId2ToId[node.Id()], adjacentId)
+	}
+}
+
+func (config *SimulationConfig) deliverMessages() {
+	// 受信側で複数届いていたら失敗
+	for _, fromIds := range config.toId2FromId {
+		if len(fromIds) >= 2 {
+			for _, fromId := range fromIds {
+				delete(config.fromId2ToId, fromId)
+			}
+		}
+	}
+
+	// 送信成功
+	for fromId, toIds := range config.fromId2ToId {
+		if len(toIds) == 0 {
+			continue
+		}
+		config.nodes[fromId].SetSending()
+		for _, toId := range toIds {
+			config.nodes[toId].SetReceiving(config.nodes[fromId].SendingMessage)
+		}
 	}
 }
