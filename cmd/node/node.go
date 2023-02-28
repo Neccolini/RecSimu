@@ -111,16 +111,16 @@ func (n *Node) SimulateCycle() {
 	case state.Idle:
 		{
 			n.curCount++
-
-			if !n.sendMessages.IsEmpty() {
-				n.SendingMessage, _ = n.sendMessages.Front()
-				n.sendMessages.Pop()
-
+			// 送信途中のメッセージがある場合
+			if !n.SendingMessage.IsEmpty() {
 				n.curMax = rand.Intn(sendTryingMax) + 1
 				n.curCount = 0
 
 				n.context.SetNext(state.Sendtrying)
-			} else if !n.SendingMessage.IsEmpty() {
+			} else if !n.sendMessages.IsEmpty() {
+				n.SendingMessage, _ = n.sendMessages.Front()
+				n.sendMessages.Pop()
+
 				n.curMax = rand.Intn(sendTryingMax) + 1
 				n.curCount = 0
 
@@ -211,7 +211,9 @@ func (n *Node) SetSending() {
 	if n.SendingMessage.IsEmpty() {
 		log.Fatal("the sending message is empty")
 	}
-
+	if n.SendingMessage.Id() != n.nodeId {
+		log.Fatalf("the id in the message is incorrect %s %s", n.SendingMessage.Id(), n.nodeId)
+	}
 	n.curMax = n.SendingMessage.Cycles()
 	n.curCount = 0
 
@@ -272,7 +274,7 @@ func (n *Node) String() string {
 	switch n.context.GetState() {
 	case state.Idle:
 		{
-			res = fmt.Sprintf("%s %s", n.nodeId, n.context.GetState())
+			res = fmt.Sprintf("%s %s %d/%d", n.nodeId, n.context.GetState(), n.curCount, n.curMax)
 		}
 	case state.Sendtrying, state.Sending, state.Waiting:
 		{

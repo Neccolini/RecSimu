@@ -2,7 +2,6 @@ package routing
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/debug"
@@ -81,15 +80,17 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 	if packet.NextId != r.id && packet.NextId != BroadCastId {
 		return pair
 	}
+	if r.drainPacket(packet) {
+		return pair
+	}
 	debug.Debug.Printf("id:%s pid:%s packet: %v\n", r.id, r.pId, packet)
 
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
-			r.table[packet.FromId] = packet.FromId
 			reply := Packet{r.id, packet.FromId, r.id, packet.FromId, "pack"}
-
 			pair = []Pair{{reply.Serialize(), packet.FromId}}
 		} else if packet.Data == "jreq" {
+			r.table[packet.FromId] = packet.PrevId
 			// jackを来た方向に返す
 			jack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "jack"}
 			pair = []Pair{{jack.Serialize(), packet.PrevId}}
@@ -97,12 +98,10 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 	} else {
 		if r.IsJoined() {
 			if packet.Data == "preq" {
-				r.table[packet.FromId] = packet.FromId
 				pack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "pack"}
 				pair = []Pair{{pack.Serialize(), packet.PrevId}}
 			} else {
 				r.table[packet.FromId] = packet.PrevId
-				debug.Debug.Printf("%s %v\n", r.id, r.table)
 				sendPacket := r.routingPacket(packet)
 				pair = []Pair{{sendPacket.Serialize(), sendPacket.NextId}}
 			}
@@ -114,7 +113,7 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 			pair = []Pair{{jreq.Serialize(), r.pId}}
 		} else if packet.Data == "jack" {
 			r.joined = true
-			fmt.Printf("%s joined Network\n", r.id)
+			debug.Debug.Printf("%s joined Network\n", r.id)
 			return pair
 		}
 	}
@@ -136,6 +135,14 @@ func (r *RF) routingPacket(p Packet) *Packet {
 	}
 	routingPacket := Packet{p.FromId, p.DistId, r.id, neighborDistId, p.Data}
 	return &routingPacket
+}
+
+func (r *RF) drainPacket(p Packet) bool {
+	if _, ok := r.table[p.FromId]; ok && 
+	(p.Data == "jreq" || p.Data == "preq") {
+		return true
+	}
+	return false
 }
 
 func (p *Packet) Serialize() []byte {
