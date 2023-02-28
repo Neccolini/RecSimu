@@ -1,15 +1,21 @@
 package gen
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"strconv"
+
+	"github.com/Neccolini/RecSimu/cmd/set"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
 )
 
 type randomTopology struct {
 	idList           []string
 	nodesPositionMap map[position]string
-	spaces           []position
+	spaces           set.Set[position]
 }
 
 type position struct {
@@ -17,11 +23,18 @@ type position struct {
 	x int
 }
 
-func RandomNetwork(nodeNum int) map[string][]string {
+func RandomNetwork(nodeNum int, plotFilePath string) map[string][]string {
 	idList := nodeIdGen(nodeNum)
 	rt := NewRandomTopology(idList)
 	rt.create()
 	adjacencyList := rt.buildNetwork()
+
+	plotData := plotter.XYs{}
+	for xy := range rt.nodesPositionMap {
+		plotData = append(plotData, xy.PlotterXY())
+	}
+	plotNetwork(plotData, plotFilePath)
+
 	return adjacencyList
 }
 
@@ -34,12 +47,13 @@ func nodeIdGen(nodeNum int) []string {
 	rand.Shuffle(nodeNum, func(i, j int) {
 		idList[i], idList[j] = idList[j], idList[i]
 	})
+	fmt.Println(len(idList))
 	return idList
 }
 
 func NewRandomTopology(idList []string) *randomTopology {
 	initPos := position{0, 0}
-	return &randomTopology{idList, map[position]string{}, []position{initPos}}
+	return &randomTopology{idList, map[position]string{}, *set.NewSet(initPos)}
 }
 
 func (rt *randomTopology) create() error {
@@ -49,33 +63,32 @@ func (rt *randomTopology) create() error {
 	return nil
 }
 
-func (rt *randomTopology) occupyRandomSpace(id string) {
-	if len(rt.spaces) == 0 {
+func (rt *randomTopology) occupyRandomSpace(id string) position {
+	if rt.spaces.Size() == 0 {
 		log.Fatal("No space left")
 	}
-	occupySpaceIndex := rand.Intn(len(rt.spaces))
+	pos := rt.spaces.RandomChoice()
 
 	// 割り当て
-	rt.nodesPositionMap[rt.spaces[occupySpaceIndex]] = id
+	rt.nodesPositionMap[pos] = id
 
 	// 隣接する新たなspaceを登録
-	adjacentPositions := rt.spaces[occupySpaceIndex].adjacentPos()
+	adjacentPositions := pos.adjacentPos()
 	for _, adjacentPosition := range adjacentPositions {
 		if _, ok := rt.nodesPositionMap[adjacentPosition]; !ok {
 			// もし占有されていなかったら
-			rt.spaces = append(rt.spaces, adjacentPosition)
+			rt.spaces.Add(adjacentPosition)
 		}
 	}
 	// 削除
-	lastIndex := len(rt.spaces) - 1
-	rt.spaces[occupySpaceIndex] = rt.spaces[lastIndex]
-	rt.spaces = rt.spaces[:lastIndex]
+	rt.spaces.Remove(pos)
 
+	return pos
 }
 
 func (rt *randomTopology) buildNetwork() map[string][]string {
 	adjacencyList := map[string][]string{}
-
+	fmt.Println(len(rt.nodesPositionMap))
 	for pos, id := range rt.nodesPositionMap {
 		// このposに隣接するノードを探す
 		resList := []string{}
@@ -100,4 +113,15 @@ func (pos *position) adjacentPos() []position {
 		{pos.y + 1, pos.x},
 		{pos.y, pos.x - 1},
 	}
+}
+
+func (pos *position) PlotterXY() plotter.XY {
+	return plotter.XY{X: float64(pos.x), Y: float64(pos.y)}
+}
+
+func plotNetwork(xys plotter.XYs, plotFilePath string) {
+	p := plot.New()
+	s, _ := plotter.NewScatter(xys)
+	p.Add(s, plotter.NewGrid())
+	p.Save(4*vg.Inch, 4*vg.Inch, plotFilePath)
 }

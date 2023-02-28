@@ -1,13 +1,17 @@
 package gen
 
 import (
+	"path/filepath"
 	"strconv"
 
 	gen "github.com/Neccolini/RecSimu/cmd/gen/topology"
 )
 
-func GenerateNetwork(filepath string, num int, cycles int) error {
-	adjacencyList := gen.RandomNetwork(num)
+func GenerateNetwork(jsonFilePath string, num int, cycles int) error {
+	fileExtension := filepath.Ext(jsonFilePath)
+	pngFilePath := jsonFilePath[:len(jsonFilePath)-len(fileExtension)] + ".png"
+
+	adjacencyList := gen.RandomNetwork(num, pngFilePath)
 
 	nodes := map[string]string{
 		"0": "Coordinator",
@@ -18,7 +22,7 @@ func GenerateNetwork(filepath string, num int, cycles int) error {
 	}
 
 	jsonOutput := JsonOutput{num, nodes, adjacencyList, cycles}
-	jsonOutput.WriteToFile(filepath)
+	jsonOutput.WriteToFile(jsonFilePath)
 
 	return nil
 }
