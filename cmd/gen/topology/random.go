@@ -7,9 +7,9 @@ import (
 )
 
 type randomTopology struct {
-	idList        []string
+	idList           []string
 	nodesPositionMap map[position]string
-	spaces        []position
+	spaces           []position
 }
 
 type position struct {
@@ -75,7 +75,7 @@ func (rt *randomTopology) occupyRandomSpace(id string) {
 
 func (rt *randomTopology) buildNetwork() map[string][]string {
 	adjacencyList := map[string][]string{}
-	
+
 	for pos, id := range rt.nodesPositionMap {
 		// このposに隣接するノードを探す
 		resList := []string{}

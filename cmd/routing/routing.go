@@ -138,8 +138,8 @@ func (r *RF) routingPacket(p Packet) *Packet {
 }
 
 func (r *RF) drainPacket(p Packet) bool {
-	if _, ok := r.table[p.FromId]; ok && 
-	(p.Data == "jreq" || p.Data == "preq") {
+	if _, ok := r.table[p.FromId]; ok &&
+		(p.Data == "jreq" || p.Data == "preq") {
 		return true
 	}
 	return false
