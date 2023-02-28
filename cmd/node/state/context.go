@@ -2,7 +2,7 @@ package node
 
 type Context struct {
 	state State
-	next string
+	next  string
 }
 
 func NewContext() *Context {

@@ -16,7 +16,7 @@ import (
 const (
 	waitRetriesMax = 8
 	sendTryingMax  = 2
-	idleMax = 20
+	idleMax        = 20
 )
 
 type NodeInit struct {
