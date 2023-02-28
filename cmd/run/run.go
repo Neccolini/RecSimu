@@ -1,11 +1,12 @@
 package run
 
 import (
+	"log"
+
 	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/instruction"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/node"
-	"github.com/Neccolini/RecSimu/cmd/random"
 	"github.com/Neccolini/RecSimu/cmd/read"
 	"github.com/Neccolini/RecSimu/cmd/routing"
 )
@@ -16,7 +17,8 @@ type SimulationConfig struct {
 	adjacencyList map[string][]string
 	nodes         map[string]*node.Node
 	// instructionList []instruction.Instruction
-	recInfo map[int][]read.RecInfo
+	recInfo    map[int][]read.RecInfo
+	messageMap map[string][]message.Message
 }
 
 func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo) *SimulationConfig {
@@ -37,9 +39,7 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 	// サイクルごとのシミュレートを実行
 	for cycle := 1; cycle <= config.totalCycle; cycle++ {
 		// todo トポロジーの変更
-		for _, info := range config.recInfo[cycle] {
-			config.changeNetwork(info)
-		}
+
 		// シミュレートを実行
 		if err := config.SimulateCycle(cycle); err != nil {
 			return err
@@ -54,60 +54,66 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 }
 
 func (config *SimulationConfig) SimulateCycle(cycle int) error {
-	messageMap := map[string][]message.Message{}
+	config.messageMap = map[string][]message.Message{}
 
+	// サイクルの更新
 	for _, node := range config.nodes {
 		if !node.Alive() {
 			continue
 		}
-		// ノードごとに送信
-		node.CycleSend()
-		if node.SendingMessage.IsEmpty() {
-			continue
-		}
-		// Broadcastの場合
-		if node.SendingMessage.ToId() == routing.BroadCastId {
-			success := false
-			for _, aNodeId := range config.adjacencyList[node.Id()] {
-				if config.nodes[aNodeId].State().IsIdle() && config.nodes[aNodeId].IsJoined() {
-					success = true
-					messageMap[aNodeId] = append(messageMap[aNodeId], node.SendingMessage)
-				}
-			}
-			if !success {
-				config.nodes[node.Id()].Wait()
-			}
-		} else { // Broadcastでない場合
-			for _, aNodeId := range config.adjacencyList[node.Id()] {
-				if config.nodes[aNodeId].State().IsIdle() {
-					messageMap[aNodeId] = append(messageMap[aNodeId], node.SendingMessage)
-				} else if aNodeId == node.SendingMessage.ToId() {
-					config.nodes[node.Id()].Wait() // 送信に失敗したので待機モード
-				}
-			}
-		}
-	}
-
-	// 送信メッセージを集計
-	for rNodeId, msgs := range messageMap {
-		if len(msgs) > 0 {
-			successMsg := random.RandomChoice(msgs)   // 複数あった場合，一つランダムで選択
-			config.nodes[rNodeId].Receive(successMsg) // 受信
-			for _, failedMsg := range msgs {
-				if failedMsg.Id() != successMsg.Id() {
-					config.nodes[failedMsg.Id()].Wait() // 送信に失敗したので待機モード
-				}
-			}
-		}
-	}
-
-	for _, node := range config.nodes {
-		if !node.Alive() {
-			continue
-		}
-		node.CycleReceive()
 		node.SimulateCycle()
 	}
 
+	// メッセージをブロードキャスト
+	for _, node := range config.nodes {
+		if node.IsSendTrying() {
+			msg := node.SendingMessage
+			if msg.Id() != node.Id() {
+				log.Fatalf("msgId and nodeId is different: %s %s", msg.Id(), node.Id())
+			}
+			config.broadCastMessage(msg)
+		}
+	}
+
+	// 受信側の処理：複数から送られてきた場合失敗
+	for distId, msgs := range config.messageMap {
+		distNode := config.nodes[distId]
+		if !distNode.IsIdle() && !distNode.IsWaiting() {
+			continue
+		}
+		if len(msgs) == 1 {
+			msg := msgs[0]
+			if !config.nodes[msg.Id()].IsSending() {
+				config.nodes[msg.Id()].SetSending()
+			}
+			if !config.nodes[distId].IsReceiving() {
+				config.nodes[distId].SetReceiving(msg)
+			}
+		}
+	}
 	return nil
+}
+
+func (config *SimulationConfig) broadCastMessage(msg message.Message) {
+	node := config.nodes[msg.Id()]
+	success := false
+	for _, adjacentId := range config.adjacencyList[node.Id()] {
+		adjacentNode := config.nodes[adjacentId]
+		if adjacentId == msg.ToId() && !adjacentNode.IsIdle() && !adjacentNode.IsWaiting() {
+			// 宛先がある場合，その宛先がbusyなら失敗
+			return
+		}
+		if msg.ToId() == routing.BroadCastId && adjacentNode.IsJoined() &&
+			(adjacentNode.IsIdle() || adjacentNode.IsWaiting()) {
+			success = true
+		}
+	}
+
+	if msg.ToId() == routing.BroadCastId && !success {
+		return
+	}
+
+	for _, adjacentId := range config.adjacencyList[node.Id()] {
+		config.messageMap[adjacentId] = append(config.messageMap[adjacentId], msg)
+	}
 }

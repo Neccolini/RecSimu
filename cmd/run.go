@@ -35,7 +35,7 @@ to quickly create a Cobra application.`,
 		input := read.ReadJsonFile(filepath)
 		config := run.NewSimulationConfig(input.NodeNum, input.Cycle, input.AdjacencyList, input.NodesType, input.ReconfigureInfo)
 		debug.Debug.On = debugBoolean
-		
+
 		config.Simulate("test")
 
 	},
