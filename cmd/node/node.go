@@ -2,10 +2,21 @@ package node
 
 import (
 	"fmt"
+	"log"
+	"math"
+	"math/rand"
 
 	"github.com/Neccolini/RecSimu/cmd/instruction"
 	"github.com/Neccolini/RecSimu/cmd/message"
+	state "github.com/Neccolini/RecSimu/cmd/node/state"
+	"github.com/Neccolini/RecSimu/cmd/random"
 	"github.com/Neccolini/RecSimu/cmd/routing"
+)
+
+const (
+	waitRetriesMax = 8
+	sendTryingMax  = 2
+	idleMax = 20
 )
 
 type NodeInit struct {
@@ -15,20 +26,19 @@ type NodeInit struct {
 }
 
 type Node struct {
-	nodeId    string
-	nodeType  string
-	nodeAlive bool
-	joined    bool
-	nodeState NodeState
+	nodeId       string
+	nodeType     string
+	nodeAlive    bool
+	context      state.Context
+	curCount     int
+	curMax       int
+	sendMessages message.MessageQueue
+	instructions instruction.InstructionQueue
 
-	receiveMessages message.MessageQueue
-	sendMessages    message.MessageQueue
-	instructions    instruction.InstructionQueue
+	SendingMessage   message.Message
+	ReceivingMessage message.Message
 
-	SendingMessage      message.Message
-	ReceivingMessage    message.Message
-	CommunicatingNodeId string
-	RoutingFunction     routing.RoutingFunction
+	RoutingFunction routing.RoutingFunction
 
 	waitRetries int
 }
@@ -38,14 +48,14 @@ func NewNode(id string, nodeType string, instructions []instruction.Instruction)
 	n.nodeId = id
 	n.nodeType = nodeType
 	n.nodeAlive = true
-	n.nodeState = NodeState{}
-	n.receiveMessages = *message.NewMessageQueue(100)      // todo: the number of initial capacity
-	n.sendMessages = *message.NewMessageQueue(100)         // todo: the number of initial capacity
-	n.instructions = *instruction.NewInstructionQueue(100) // todo: the number of initial capacity
+	n.context = *state.NewContext()
+
+	n.sendMessages = *message.NewMessageQueue(50)         // todo: the number of initial capacity
+	n.instructions = *instruction.NewInstructionQueue(50) // todo: the number of initial capacity
 	for _, inst := range instructions {
 		n.instructions.Push(inst)
 	}
-	n.RoutingFunction = &routing.RF{}
+	n.RoutingFunction = routing.NewRoutingFunction(n.nodeId, n.nodeType)
 	n.Init()
 
 	return n, nil
@@ -53,10 +63,10 @@ func NewNode(id string, nodeType string, instructions []instruction.Instruction)
 
 func (n *Node) Init() error {
 	// 開始メッセージ生成
-	packets, distId := n.RoutingFunction.Init(n.nodeId, n.nodeType)
+	packets := n.RoutingFunction.Init()
 
 	for _, packet := range packets {
-		n.sendMessages.Push(*message.NewMessage(n.nodeId, distId, packet))
+		n.sendMessages.Push(*message.NewMessage(n.nodeId, packet.ToId, packet.Data))
 	}
 	return nil
 }
@@ -69,8 +79,8 @@ func (n *Node) Type() string {
 	return n.nodeType
 }
 
-func (n *Node) State() *NodeState {
-	return &n.nodeState
+func (n *Node) State() string {
+	return n.context.GetState()
 }
 
 func (n *Node) Alive() bool {
@@ -83,179 +93,205 @@ func (n *Node) IsJoined() bool {
 
 func (n *Node) Reset() error {
 	n.nodeAlive = false
-	n.joined = false
-	n.receiveMessages.Clear()
+
 	n.sendMessages.Clear()
 	n.SendingMessage.Clear()
 	n.ReceivingMessage.Clear()
 	n.RoutingFunction.Reset()
-	n.nodeState.ResetAll()
+	n.context.Reset()
+
 	return nil
 }
 
-func (n *Node) processInstruction() error {
-	i, err := n.instructions.Front()
-	if err != nil {
-		return err
+func (n *Node) SimulateCycle() {
+	// 最後に状態を更新
+	defer n.context.Handle()
+	// 現在の状態に従い，context.nextを更新
+	switch n.context.GetState() {
+	case state.Idle:
+		{
+			n.curCount++
+
+			if !n.sendMessages.IsEmpty() {
+				n.SendingMessage, _ = n.sendMessages.Front()
+				n.sendMessages.Pop()
+
+				n.curMax = rand.Intn(sendTryingMax) + 1
+				n.curCount = 0
+
+				n.context.SetNext(state.Sendtrying)
+			} else if !n.SendingMessage.IsEmpty() {
+				n.curMax = rand.Intn(sendTryingMax) + 1
+				n.curCount = 0
+
+				n.context.SetNext(state.Sendtrying)
+			} else if n.curCount >= n.curMax {
+				n.Init()
+			}
+		}
+	case state.Sendtrying:
+		{
+			n.curCount++
+			if n.curCount > n.curMax {
+				log.Fatalf("sendtrying: n.curCount %d > n.curMax %d", n.curCount, n.curMax)
+			}
+			if n.curCount == n.curMax {
+				// wait状態に移行
+				if n.waitRetries < waitRetriesMax {
+					n.waitRetries++
+				}
+				n.curMax = n.calcWaitCycle()
+				n.curCount = 0
+				n.context.SetNext(state.Waiting)
+			}
+		}
+	case state.Sending:
+		{
+			// 送信に成功しているので待ち時間はリセット
+			n.waitRetries = 0
+			n.curCount++
+			if n.curCount > n.curMax {
+				log.Fatalf("sending: n.curCount %d > n.curMax %d", n.curCount, n.curMax)
+			}
+			if n.curCount == n.curMax {
+				n.curMax = rand.Intn(idleMax) + idleMax
+				n.curCount = 0
+
+				n.SendingMessage.Clear()
+				n.context.SetNext(state.Idle)
+			}
+		}
+	case state.Receiving:
+		{
+			n.curCount++
+			if n.curCount > n.curMax {
+				log.Fatalf("receiving: n.curCount %d > n.curMax %d", n.curCount, n.curMax)
+			}
+			if n.curCount == n.curMax {
+				n.curMax = rand.Intn(idleMax) + idleMax
+				n.curCount = 0
+				// process Message
+				n.processReceivedMessage()
+
+				n.ReceivingMessage.Clear()
+				n.context.SetNext(state.Idle)
+			}
+		}
+	case state.Waiting:
+		{
+			n.curCount++
+			if n.curCount > n.curMax {
+				log.Fatalf("waiting: n.curCount %d > n.curMax %d", n.curCount, n.curMax)
+			}
+			if n.curCount == n.curMax {
+				n.curMax = sendTryingMax
+				n.curCount = 0
+				n.context.SetNext(state.Sendtrying)
+			}
+		}
 	}
-	n.instructions.Pop()
+}
 
-	packets, distId := n.RoutingFunction.GenMessageFromI(i.Data)
-
+func (n *Node) processReceivedMessage() {
+	// 受信したメッセージを読みこみ，
+	// RFに投げて，
+	// 受信メッセージが帰ってくればそれをキューにプッシュ
+	packets := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
 	for _, packet := range packets {
-		m := *message.NewMessage(n.nodeId, distId, packet)
-		n.sendMessages.Push(m)
+		n.sendMessages.Push(*message.NewMessage(n.nodeId, packet.ToId, packet.Data))
 	}
-	return nil
 }
 
-func (n *Node) sendProcess() bool {
-	if n.sendMessages.IsEmpty() {
-		return false
-	}
-	message, err := n.sendMessages.Front()
-	if err != nil {
-		return false
-	}
-	// n.sendMessages.Pop()
+func (n *Node) SetSending() {
+	defer n.context.Handle()
 
-	n.SendingMessage = message
-	n.nodeState.SendStart(message.Cycles())
-	return true
+	if n.context.GetState() != state.Sendtrying {
+		log.Fatalf("the state of node %s is %s: cannot transit to Sending State", n.nodeId, n.context.GetState())
+	}
+	if n.SendingMessage.IsEmpty() {
+		log.Fatal("the sending message is empty")
+	}
+
+	n.curMax = n.SendingMessage.Cycles()
+	n.curCount = 0
+
+	// sendtrying -> sending
+	n.context.SetNext(state.Sending)
 }
 
-func (n *Node) receiveProcess() bool {
-	if n.receiveMessages.IsEmpty() {
-		return false
+func (n *Node) SetReceiving(msg message.Message) {
+	defer n.context.Handle()
+
+	if n.context.GetState() != state.Idle && n.context.GetState() != state.Waiting {
+		log.Fatalf("the state of node %s is %s: cannot transit to Receiving State", n.nodeId, n.context.GetState())
+	}
+	if msg.IsEmpty() {
+		log.Fatal("the receiving message is empty")
 	}
 
-	message, err := n.receiveMessages.Front()
-	if err != nil {
-		fmt.Printf("err: %v\n", err)
-		return false
-	}
-	n.receiveMessages.Pop()
-	n.ReceivingMessage = message
-	n.CommunicatingNodeId = n.ReceivingMessage.Id()
-	n.nodeState.RecieveStart(message.Cycles())
-	return true
+	n.ReceivingMessage = msg
+
+	n.curMax = msg.Cycles()
+	n.curCount = 0
+
+	// idle | waiting -> receiving
+	n.context.SetNext(state.Receiving)
 }
 
-func (n *Node) receiveComplete() bool {
-	// 受信中のメッセージが存在するが，ノードの状態は受信中じゃない -> 受信完了
-	if !n.ReceivingMessage.IsEmpty() && !n.nodeState.IsReceiving() {
-		packets, distId := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
-
-		for _, packet := range packets {
-			m := *message.NewMessage(n.nodeId, distId, packet)
-			n.sendMessages.Push(m)
-		}
-		// 現在のメッセージを破棄
-		n.ReceivingMessage.Clear()
-		return true
-	}
-	return false
+func (n *Node) calcWaitCycle() int {
+	return random.RandomInt(1, int(math.Pow(2, float64(n.waitRetries))))
 }
 
-func (n *Node) CycleSend() bool {
-	// 送信中でない場合
-	if n.nodeState.IsIdle() {
-		return n.sendProcess()
-	}
-	return false
+// sending
+func (n *Node) IsSending() bool {
+	return n.context.GetState() == state.Sending
 }
 
-func (n *Node) CycleReceive() bool {
-	// 受信中でない場合
-	if n.nodeState.IsIdle() {
-		return n.receiveProcess()
-	}
-	return false
+// sendtrying
+func (n *Node) IsSendTrying() bool {
+	return n.context.GetState() == state.Sendtrying
 }
 
-func (n *Node) SimulateCycle() error {
-	// 送信処理がうまくいったかどうか
-	// 送信するメッセージが存在し，待機中でない
-	if !n.SendingMessage.IsEmpty() && n.nodeState.IsSending() {
-		// この場合送信がうまくいっているので，queueから削除
-		if err := n.sendMessages.Pop(); err != nil {
-			return err
-		}
-		// communicating nodeを設定
-		n.CommunicatingNodeId = n.SendingMessage.ToId()
-		n.waitRetries = 0
-	}
-	n.SendingMessage.Clear() // 送信中メッセージは削除
-
-	// 状態を進める
-	if err := n.nodeState.Next(); err != nil {
-		return err
-	}
-
-	// 受信したメッセージを処理する
-	n.receiveComplete()
-	// 命令を実行
-	n.processInstruction()
-
-	n.endCommunication()
-	return nil
+// receiving
+func (n *Node) IsReceiving() bool {
+	return n.context.GetState() == state.Receiving
 }
 
-func (n *Node) Receive(m message.Message) {
-	n.receiveMessages.Push(m)
+// idle
+func (n *Node) IsIdle() bool {
+	return n.context.GetState() == state.Idle
 }
 
-func (n *Node) Wait() error {
-	if !n.nodeState.IsSending() {
-		return fmt.Errorf("Node %s is not sending a message", n.nodeId)
-	}
-	if n.waitRetries >= 6 {
-		n.waitRetries--
-	}
-	n.waitRetries++
-	n.nodeState.Wait(n.waitRetries)
-	n.nodeState.sending = State{false, 0} // send中止
-
-	return nil
-}
-
-func (n *Node) endCommunication() {
-	if n.CommunicatingNodeId == "" {
-		n.nodeState.ResetCommunication()
-	} else if n.nodeState.receiving.remaining == 0 &&
-		n.nodeState.sending.remaining == 0 {
-		n.CommunicatingNodeId = ""
-	}
+// waiting
+func (n *Node) IsWaiting() bool {
+	return n.context.GetState() == state.Waiting
 }
 
 func (n *Node) String() string {
-
-	condition := "inactive"
-	if n.nodeAlive {
-		condition = "active"
+	res := ""
+	switch n.context.GetState() {
+	case state.Idle:
+		{
+			res = fmt.Sprintf("%s %s", n.nodeId, n.context.GetState())
+		}
+	case state.Sendtrying, state.Sending, state.Waiting:
+		{
+			res = fmt.Sprintf("%s %s to %s %d/%d", n.nodeId, n.context.GetState(), n.SendingMessage.ToId(), n.curCount, n.curMax)
+		}
+	case state.Receiving:
+		{
+			res = fmt.Sprintf("%s %s from %s %d/%d", n.nodeId, n.context.GetState(), n.ReceivingMessage.Id(), n.curCount, n.curMax)
+		}
+	default:
+		{
+			res = ""
+		}
 	}
-
-	state := "idle"
-	packetInfo := ""
-	if n.nodeState.IsReceiving() {
-		state = "receiving"
-		packetInfo = ", packet from: " + fmt.Sprint(n.ReceivingMessage.Id())
-
-		totalCycles := n.ReceivingMessage.Cycles()
-		curCycles := totalCycles - n.nodeState.receiving.remaining
-		packetInfo += fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
-	} else if n.nodeState.IsSending() {
-		state = "sending"
-		packetInfo = ", packet to: " + fmt.Sprint(n.SendingMessage.ToId())
-
-		totalCycles := n.SendingMessage.Cycles()
-		curCycles := totalCycles - n.nodeState.sending.remaining
-		packetInfo += fmt.Sprintf(", flit: %d/%d", curCycles, totalCycles)
-	} else if n.nodeState.IsWaiting() {
-		state = "waiting"
-		curCycles := n.nodeState.waiting.remaining
-		packetInfo += fmt.Sprintf(",remaining wait cycle: %d", curCycles)
+	if n.IsJoined() {
+		res += " joined"
 	}
-
-	return fmt.Sprintf("id: %s, type: %s, condition: %s, state: %s%s", n.nodeId, n.nodeType, condition, state, packetInfo)
+	if n.RoutingFunction.ParentId() != "" {
+		res += " " + n.RoutingFunction.ParentId()
+	}
+	return res
 }

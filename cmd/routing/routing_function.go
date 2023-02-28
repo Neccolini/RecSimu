@@ -1,9 +1,15 @@
 package routing
 
+type Pair struct {
+	Data []byte
+	ToId string
+}
+
 type RoutingFunction interface {
-	Init(id string, nodeType string) ([][]byte, string)
-	GenMessageFromM(packet []byte) ([][]byte, string)
-	GenMessageFromI(i []byte) ([][]byte, string)
+	Init() []Pair
+	GenMessageFromM(packet []byte) []Pair
+	GenMessageFromI(i []byte) []Pair
 	IsJoined() bool
+	ParentId() string
 	Reset()
 }

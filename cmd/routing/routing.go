@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	BytePerFlit   = 32
+	BytePerFlit   = 16
 	Router        = "Router"
 	Coordinator   = "Coordinator"
 	BroadCastId   = "BroadCast"
@@ -32,75 +32,97 @@ type Packet struct {
 	Data   string
 }
 
-func (r *RF) Init(id string, nodeType string) ([][]byte, string) {
+func NewRoutingFunction(id string, nodeType string) *RF {
+	r := RF{}
 	r.id = id
 	r.nodeType = nodeType
 	r.pId = ""
 	r.table = map[string]string{}
-	if nodeType == Router {
-		// parent request 送信
-		p := Packet{r.id, BroadCastId, r.id, BroadCastId, "preq"}
-		return [][]byte{p.Serialize()}, "BroadCast"
-	}
 
-	r.joined = true
-	return nil, ""
+	if r.nodeType == Coordinator {
+		r.joined = true
+	}
+	return &r
+}
+func (r *RF) Init() []Pair {
+	if r.nodeType == Router {
+		if r.pId == "" {
+			// parent request 送信
+			p := Packet{r.id, BroadCastId, r.id, BroadCastId, "preq"}
+
+			return []Pair{
+				{p.Serialize(), BroadCastId},
+			}
+		} else if !r.joined {
+			jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreq"}
+			return []Pair{{jreq.Serialize(), r.pId}}
+		}
+	}
+	return []Pair{}
 }
 
 func (r *RF) IsJoined() bool {
 	return r.joined
 }
 
+func (r *RF) ParentId() string {
+	return r.pId
+}
+
 func (r *RF) Reset() {
 
 }
 
-func (r *RF) GenMessageFromM(received []byte) ([][]byte, string) {
+func (r *RF) GenMessageFromM(received []byte) []Pair {
 	packet := DeserializeFrom(received)
+
+	pair := []Pair{}
+
 	if packet.NextId != r.id && packet.NextId != BroadCastId {
-		return nil, ""
+		return pair
 	}
-	debug.Debug.Printf("%v\n", packet)
+	debug.Debug.Printf("id:%s pid:%s packet: %v\n", r.id, r.pId, packet)
 
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
 			r.table[packet.FromId] = packet.FromId
 			reply := Packet{r.id, packet.FromId, r.id, packet.FromId, "pack"}
-			return [][]byte{reply.Serialize()}, packet.FromId
+
+			pair = []Pair{{reply.Serialize(), packet.FromId}}
 		} else if packet.Data == "jreq" {
 			// jackを来た方向に返す
 			jack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "jack"}
-			return [][]byte{jack.Serialize()}, packet.PrevId
+			pair = []Pair{{jack.Serialize(), packet.PrevId}}
 		}
 	} else {
 		if r.IsJoined() {
 			if packet.Data == "preq" {
 				r.table[packet.FromId] = packet.FromId
 				pack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "pack"}
-				return [][]byte{pack.Serialize()}, packet.PrevId
+				pair = []Pair{{pack.Serialize(), packet.PrevId}}
 			} else {
 				r.table[packet.FromId] = packet.PrevId
+				debug.Debug.Printf("%s %v\n", r.id, r.table)
 				sendPacket := r.routingPacket(packet)
-				return [][]byte{sendPacket.Serialize()}, sendPacket.NextId
+				pair = []Pair{{sendPacket.Serialize(), sendPacket.NextId}}
 			}
-		}
-		if packet.Data == "pack" && r.pId == "" {
+		} else if packet.Data == "pack" && r.pId == "" {
 			r.table[packet.FromId] = packet.FromId
 			r.table[CoordinatorId] = packet.FromId
 			r.pId = packet.FromId
 			jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreq"}
-			return [][]byte{jreq.Serialize()}, r.pId
+			pair = []Pair{{jreq.Serialize(), r.pId}}
 		} else if packet.Data == "jack" {
 			r.joined = true
 			fmt.Printf("%s joined Network\n", r.id)
-			return nil, ""
+			return pair
 		}
 	}
-	return nil, ""
+	return pair
 }
 
-func (r *RF) GenMessageFromI(inst []byte) ([][]byte, string) {
-	return nil, ""
+func (r *RF) GenMessageFromI(inst []byte) []Pair {
+	return []Pair{}
 }
 
 func (r *RF) routingPacket(p Packet) *Packet {
@@ -127,7 +149,7 @@ func (p *Packet) Serialize() []byte {
 func DeserializeFrom(data []byte) Packet {
 	var packet Packet
 	if err := json.Unmarshal(data, &packet); err != nil {
-		log.Fatalf("error during packet deserialization %v", err)
+		log.Fatalf("error during packet deserialization: %v", err)
 	}
 	return packet
 }
