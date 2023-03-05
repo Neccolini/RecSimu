@@ -1,17 +1,19 @@
 package gen
 
 import (
+	"fmt"
 	"path/filepath"
 	"strconv"
 
-	gen "github.com/Neccolini/RecSimu/cmd/gen/topology"
+	injection "github.com/Neccolini/RecSimu/cmd/gen/injection"
+	topology "github.com/Neccolini/RecSimu/cmd/gen/topology"
 )
 
-func GenerateNetwork(jsonFilePath string, num int, cycles int) error {
+func GenerateNetwork(jsonFilePath string, num int, cycles int, rate float64) error {
 	fileExtension := filepath.Ext(jsonFilePath)
 	pngFilePath := jsonFilePath[:len(jsonFilePath)-len(fileExtension)] + ".png"
 
-	adjacencyList := gen.RandomNetwork(num, pngFilePath)
+	adjacencyList := topology.RandomNetwork(num, pngFilePath)
 
 	nodes := map[string]string{
 		"0": "Coordinator",
@@ -21,8 +23,12 @@ func GenerateNetwork(jsonFilePath string, num int, cycles int) error {
 		nodes[strconv.Itoa(i)] = "Router"
 	}
 
-	jsonOutput := JsonOutput{num, nodes, adjacencyList, cycles}
+	injections := injection.GenerateInjectionPackets(num, cycles, rate)
+
+	jsonOutput := JsonOutput{num, nodes, adjacencyList, cycles, injections}
 	jsonOutput.WriteToFile(jsonFilePath)
+
+	fmt.Printf("Successfully created %s and %s\n", jsonFilePath, pngFilePath)
 
 	return nil
 }

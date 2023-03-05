@@ -1,10 +1,10 @@
 package run
 
 import (
+	"fmt"
 	"log"
 
-	"github.com/Neccolini/RecSimu/cmd/debug"
-	"github.com/Neccolini/RecSimu/cmd/instruction"
+	"github.com/Neccolini/RecSimu/cmd/injection"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	"github.com/Neccolini/RecSimu/cmd/node"
 	"github.com/Neccolini/RecSimu/cmd/read"
@@ -12,31 +12,33 @@ import (
 )
 
 type SimulationConfig struct {
-	nodeNum       int
-	totalCycle    int
-	adjacencyList map[string][]string
-	nodes         map[string]*node.Node
-	// instructionList []instruction.Instruction
-	recInfo     map[int][]read.RecInfo
-	fromId2ToId map[string][]string // fromId -> toId
-	toId2FromId map[string][]string // toId -> fromId
+	nodeNum        int
+	totalCycle     int
+	adjacencyList  map[string][]string
+	nodes          map[string]*node.Node
+	injectionTable injection.InjectionTable
+	recInfo        map[int][]read.RecInfo
+	fromId2ToId    map[string][]string // fromId -> toId
+	toId2FromId    map[string][]string // toId -> fromId
 }
 
-func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo) *SimulationConfig {
+func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo, iTable injection.InjectionTable) *SimulationConfig {
 	config := &SimulationConfig{}
 	config.nodeNum = nodeNum
 	config.totalCycle = cycle
 	config.adjacencyList = adjacencyList
 	config.nodes = make(map[string]*node.Node, nodeNum)
 	config.recInfo = recInfo
+	config.injectionTable = iTable
+
 	for id, nType := range nodesType {
-		config.nodes[id], _ = node.NewNode(id, nType, []instruction.Instruction{}) // todo エラー処理？
+		config.nodes[id], _ = node.NewNode(id, nType) // todo エラー処理？
 	}
 
 	return config
 }
 
-func (config *SimulationConfig) Simulate(outputFile string) error {
+func (config *SimulationConfig) Simulate() error {
 	// サイクルごとのシミュレートを実行
 	for cycle := 1; cycle <= config.totalCycle; cycle++ {
 		// todo トポロジーの変更
@@ -46,11 +48,24 @@ func (config *SimulationConfig) Simulate(outputFile string) error {
 			return err
 		}
 		// todo 各サイクル後の状態を記録
-		debug.Debug.Printf("\ncycle %d\n", cycle)
-		for _, node := range config.nodes {
-			debug.Debug.Println(node.String())
-		}
+		/*
+			debug.Debug.Printf("\ncycle %d\n", cycle)
+			for _, node := range config.nodes {
+				debug.Debug.Println(node.String())
+			}
+		*/
 	}
+
+	// シミュレーション結果の集計
+	averageLatency := 0.0
+	totalPackets := 0
+	for _, node := range config.nodes {
+		averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
+		totalPackets += node.Performance.TotalPacketNum
+	}
+	fmt.Printf("total packets: %d\n", totalPackets)
+	fmt.Printf("average latency: %.5f [cycle]\n", averageLatency/float64(config.nodeNum))
+
 	return nil
 }
 
@@ -58,12 +73,14 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 	config.toId2FromId = map[string][]string{}
 	config.fromId2ToId = map[string][]string{}
 
+	config.inject(cycle)
+
 	// サイクルの更新
 	for _, node := range config.nodes {
 		if !node.Alive() {
 			continue
 		}
-		node.SimulateCycle()
+		node.SimulateCycle(cycle)
 	}
 
 	// メッセージをブロードキャスト
@@ -79,6 +96,20 @@ func (config *SimulationConfig) SimulateCycle(cycle int) error {
 
 	config.deliverMessages()
 
+	return nil
+}
+
+func (config *SimulationConfig) inject(cycle int) error {
+	injections, err := config.injectionTable.QueryByCycle(cycle)
+	if err != nil {
+		return err
+	}
+	for _, i := range injections {
+		node := config.nodes[i.FromId]
+		if node.IsJoined() {
+			node.InjectMessage(i.InjectionId, i.DistId, i.Data)
+		}
+	}
 	return nil
 }
 
@@ -122,12 +153,20 @@ func (config *SimulationConfig) deliverMessages() {
 
 	// 送信成功
 	for fromId, toIds := range config.fromId2ToId {
+		msg := config.nodes[fromId].SendingMessage
 		if len(toIds) == 0 {
 			continue
 		}
 		config.nodes[fromId].SetSending()
+
+		injection, _ := config.injectionTable.QueryById(msg.MessageId)
+		fmt.Printf("%s: %s to %s\n", injection.InjectionId, injection.FromId, injection.DistId)
 		for _, toId := range toIds {
-			config.nodes[toId].SetReceiving(config.nodes[fromId].SendingMessage)
+			if injection.DistId == toId {
+				// perfomance measure end
+				config.nodes[injection.FromId].MessageReached(injection.InjectionId)
+			}
+			config.nodes[toId].SetReceiving(msg)
 		}
 	}
 }

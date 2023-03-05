@@ -8,7 +8,7 @@ type Pair struct {
 type RoutingFunction interface {
 	Init() []Pair
 	GenMessageFromM(packet []byte) []Pair
-	GenMessageFromI(i []byte) []Pair
+	GenMessageFromI(distId string, data string) []Pair
 	IsJoined() bool
 	ParentId() string
 	Reset()

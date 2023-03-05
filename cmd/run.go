@@ -33,10 +33,10 @@ to quickly create a Cobra application.`,
 		}
 
 		input := read.ReadJsonFile(filepath)
-		config := run.NewSimulationConfig(input.NodeNum, input.Cycle, input.AdjacencyList, input.NodesType, input.ReconfigureInfo)
+		config := run.NewSimulationConfig(input.NodeNum, input.Cycle, input.AdjacencyList, input.NodesType, input.ReconfigureInfo, input.InjectionTable)
 		debug.Debug.On = debugBoolean
 
-		config.Simulate("test")
+		config.Simulate()
 
 	},
 }
@@ -45,7 +45,6 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 
 	runCmd.Flags().StringP("input", "i", "", "input configuration file")
-	runCmd.Flags().StringP("output", "o", "", "output file")
 	runCmd.Flags().BoolP("debug", "d", false, "debug mode")
 	// Here you will define your flags and configuration settings.
 

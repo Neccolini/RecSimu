@@ -30,13 +30,17 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			log.Fatal(err)
 		}
+		rate, err := cmd.Flags().GetFloat64("rate")
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		filePath, err := cmd.Flags().GetString("file")
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		if err := gen.GenerateNetwork(filePath, nodeNum, cycles); err != nil {
+		if err := gen.GenerateNetwork(filePath, nodeNum, cycles, rate); err != nil {
 			log.Fatal(err)
 		}
 	},
@@ -46,6 +50,7 @@ func init() {
 	rootCmd.AddCommand(genCmd)
 	genCmd.Flags().IntP("nodenum", "n", 0, "the number of nodes")
 	genCmd.Flags().IntP("cycles", "c", 0, "cycles")
+	genCmd.Flags().Float64P("rate", "r", 0.01, "packet injection rate")
 	genCmd.Flags().StringP("file", "f", "", "filepath")
 	// Here you will define your flags and configuration settings.
 

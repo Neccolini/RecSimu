@@ -6,17 +6,17 @@ const bytePerFlit = routing.BytePerFlit
 
 type Packet []byte
 type Message struct {
-	fromId string
-	toId   string
-	valid  bool
-	ready  bool
-	cycles int
-	Data   Packet
+	MessageId string
+	fromId    string
+	toId      string
+	ready     bool
+	cycles    int
+	Data      Packet
 }
 
-func NewMessage(fromId string, toId string, data []byte) *Message {
+func NewMessage(mId string, fromId string, toId string, data []byte) *Message {
 	cycles := (len(data) + bytePerFlit) / bytePerFlit
-	return &Message{fromId, toId, true, false, cycles, data}
+	return &Message{mId, fromId, toId, true, cycles, data}
 }
 
 func (m *Message) IsEmpty() bool {
@@ -32,15 +32,6 @@ func (m *Message) ToId() string {
 }
 func (m *Message) Cycles() int {
 	return m.cycles
-}
-
-func (m *Message) IsValid() bool {
-	return m.valid
-}
-
-func (m *Message) Invalidate() error {
-	m.valid = false
-	return nil
 }
 
 func (m *Message) IsReady() bool {

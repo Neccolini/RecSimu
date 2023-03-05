@@ -5,10 +5,12 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"strconv"
 
-	"github.com/Neccolini/RecSimu/cmd/instruction"
+	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	state "github.com/Neccolini/RecSimu/cmd/node/state"
+	"github.com/Neccolini/RecSimu/cmd/perf"
 	"github.com/Neccolini/RecSimu/cmd/random"
 	"github.com/Neccolini/RecSimu/cmd/routing"
 )
@@ -20,9 +22,8 @@ const (
 )
 
 type NodeInit struct {
-	Id           string
-	Type         string
-	Instructions []instruction.Instruction
+	Id   string
+	Type string
 }
 
 type Node struct {
@@ -30,10 +31,10 @@ type Node struct {
 	nodeType     string
 	nodeAlive    bool
 	context      state.Context
+	curCycle     int
 	curCount     int
 	curMax       int
 	sendMessages message.MessageQueue
-	instructions instruction.InstructionQueue
 
 	SendingMessage   message.Message
 	ReceivingMessage message.Message
@@ -41,20 +42,20 @@ type Node struct {
 	RoutingFunction routing.RoutingFunction
 
 	waitRetries int
+	messageCnt  int
+	Performance perf.Perf
 }
 
-func NewNode(id string, nodeType string, instructions []instruction.Instruction) (*Node, error) {
+func NewNode(id string, nodeType string) (*Node, error) {
 	n := &Node{}
 	n.nodeId = id
 	n.nodeType = nodeType
 	n.nodeAlive = true
 	n.context = *state.NewContext()
+	n.Performance = *perf.NewPerf()
 
-	n.sendMessages = *message.NewMessageQueue(50)         // todo: the number of initial capacity
-	n.instructions = *instruction.NewInstructionQueue(50) // todo: the number of initial capacity
-	for _, inst := range instructions {
-		n.instructions.Push(inst)
-	}
+	n.sendMessages = *message.NewMessageQueue(50) // todo: the number of initial capacity
+
 	n.RoutingFunction = routing.NewRoutingFunction(n.nodeId, n.nodeType)
 	n.Init()
 
@@ -66,7 +67,7 @@ func (n *Node) Init() error {
 	packets := n.RoutingFunction.Init()
 
 	for _, packet := range packets {
-		n.sendMessages.Push(*message.NewMessage(n.nodeId, packet.ToId, packet.Data))
+		n.sendMessages.Push(*message.NewMessage(n.newMessageId(), n.nodeId, packet.ToId, packet.Data))
 	}
 	return nil
 }
@@ -103,10 +104,17 @@ func (n *Node) Reset() error {
 	return nil
 }
 
-func (n *Node) SimulateCycle() {
+func (n *Node) SetCycle(cycle int) {
+	n.curCycle = cycle
+}
+
+func (n *Node) SimulateCycle(cycle int) {
 	// 最後に状態を更新
 	defer n.context.Handle()
 	// 現在の状態に従い，context.nextを更新
+
+	n.SetCycle(cycle)
+
 	switch n.context.GetState() {
 	case state.Idle:
 		{
@@ -154,6 +162,7 @@ func (n *Node) SimulateCycle() {
 				log.Fatalf("sending: n.curCount %d > n.curMax %d", n.curCount, n.curMax)
 			}
 			if n.curCount == n.curMax {
+				debug.Debug.Printf("cycle: %d, packet id: %s, curid: %s, distid: %s\n", n.curCycle, n.SendingMessage.MessageId, n.nodeId, n.SendingMessage.ToId())
 				n.curMax = rand.Intn(idleMax) + idleMax
 				n.curCount = 0
 
@@ -173,7 +182,6 @@ func (n *Node) SimulateCycle() {
 				// process Message
 				n.processReceivedMessage()
 
-				n.ReceivingMessage.Clear()
 				n.context.SetNext(state.Idle)
 			}
 		}
@@ -198,8 +206,9 @@ func (n *Node) processReceivedMessage() {
 	// 受信メッセージが帰ってくればそれをキューにプッシュ
 	packets := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
 	for _, packet := range packets {
-		n.sendMessages.Push(*message.NewMessage(n.nodeId, packet.ToId, packet.Data))
+		n.sendMessages.Push(*message.NewMessage(n.ReceivingMessage.MessageId, n.nodeId, packet.ToId, packet.Data))
 	}
+	n.ReceivingMessage.Clear()
 }
 
 func (n *Node) SetSending() {
@@ -238,6 +247,30 @@ func (n *Node) SetReceiving(msg message.Message) {
 
 	// idle | waiting -> receiving
 	n.context.SetNext(state.Receiving)
+}
+
+func (n *Node) InjectMessage(injectionId string, distId string, data string) {
+	if n.IsJoined() {
+		packets := n.RoutingFunction.GenMessageFromI(distId, data)
+		for _, p := range packets {
+			n.sendMessages.Push(*message.NewMessage(injectionId, n.nodeId, p.ToId, p.Data))
+			n.Performance.Start(injectionId, n.curCycle)
+			debug.Debug.Printf("cycle: %d, packetid: %s, start\n", n.curCycle, injectionId)
+		}
+	}
+}
+
+func (n *Node) MessageReached(injectionId string) {
+	if !n.Performance.Contains(injectionId) {
+		log.Fatal("measure not started")
+	}
+	n.Performance.End(injectionId, n.curCycle)
+	debug.Debug.Printf("cycle: %d, packetid: %s, end\n", n.curCycle, injectionId)
+}
+
+func (n *Node) newMessageId() string {
+	n.messageCnt++
+	return n.nodeId + "_" + strconv.Itoa(n.messageCnt)
 }
 
 func (n *Node) calcWaitCycle() int {
