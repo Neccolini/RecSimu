@@ -1,7 +1,6 @@
 package gen
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"strconv"
@@ -47,7 +46,6 @@ func nodeIdGen(nodeNum int) []string {
 	rand.Shuffle(nodeNum, func(i, j int) {
 		idList[i], idList[j] = idList[j], idList[i]
 	})
-	fmt.Println(len(idList))
 	return idList
 }
 
@@ -88,7 +86,6 @@ func (rt *randomTopology) occupyRandomSpace(id string) position {
 
 func (rt *randomTopology) buildNetwork() map[string][]string {
 	adjacencyList := map[string][]string{}
-	fmt.Println(len(rt.nodesPositionMap))
 	for pos, id := range rt.nodesPositionMap {
 		// このposに隣接するノードを探す
 		resList := []string{}

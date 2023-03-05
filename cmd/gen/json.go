@@ -4,13 +4,16 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+
+	injection "github.com/Neccolini/RecSimu/cmd/injection"
 )
 
 type JsonOutput struct {
-	Num         int                 `json:"num"`
-	Nodes       map[string]string   `json:"nodes"`
-	Adjacencies map[string][]string `json:"adjacencies"`
-	Cycles      int                 `json:"cycles"`
+	Num         int                   `json:"num"`
+	Nodes       map[string]string     `json:"nodes"`
+	Adjacencies map[string][]string   `json:"adjacencies"`
+	Cycles      int                   `json:"cycles"`
+	Injections  []injection.Injection `json:"injections"`
 }
 
 type Node struct {

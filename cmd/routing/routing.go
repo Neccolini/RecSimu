@@ -72,6 +72,10 @@ func (r *RF) Reset() {
 
 }
 
+func (r *RF) ProcessMessage(m string) []Pair {
+	return []Pair{}
+}
+
 func (r *RF) GenMessageFromM(received []byte) []Pair {
 	packet := DeserializeFrom(received)
 
@@ -83,7 +87,7 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 	if r.drainPacket(packet) {
 		return pair
 	}
-	debug.Debug.Printf("id:%s pid:%s packet: %v\n", r.id, r.pId, packet)
+	// debug.Debug.Printf("id:%s pid:%s packet: %v\n", r.id, r.pId, packet)
 
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
@@ -117,11 +121,15 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 			return pair
 		}
 	}
+	if packet.DistId == r.id && packet.Data == "" {
+		return r.ProcessMessage(packet.Data)
+	}
 	return pair
 }
 
-func (r *RF) GenMessageFromI(inst []byte) []Pair {
-	return []Pair{}
+func (r *RF) GenMessageFromI(distId string, data string) []Pair {
+	packet := Packet{r.id, distId, r.id, r.table[distId], data}
+	return []Pair{{packet.Serialize(), r.table[distId]}}
 }
 
 func (r *RF) routingPacket(p Packet) *Packet {
