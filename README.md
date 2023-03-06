@@ -24,4 +24,5 @@ $ RecSimu gen -n <network_size> -c <simulation_cycles> -f <output_file_path>
 
 ### Run Simulation
 ```bash
-$ RecSimu run -i <input_file_path> -o <output_file_path>
+$ RecSimu run -i <input_file_path>
+```
