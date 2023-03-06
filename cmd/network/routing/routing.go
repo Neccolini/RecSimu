@@ -1,10 +1,11 @@
-package routing
+package network
 
 import (
 	"encoding/json"
 	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/debug"
+	"github.com/Neccolini/RecSimu/cmd/network"
 )
 
 const (
@@ -16,11 +17,12 @@ const (
 )
 
 type RF struct {
-	id       string
-	nodeType string
-	pId      string
-	joined   bool
-	table    map[string]string // adjacentId -> DistId
+	id            string
+	nodeType      string
+	pId           string
+	joined        bool
+	table         map[string]string // adjacentId -> DistId
+	reconfiguring bool
 }
 
 type Packet struct {
@@ -43,21 +45,21 @@ func NewRoutingFunction(id string, nodeType string) *RF {
 	}
 	return &r
 }
-func (r *RF) Init() []Pair {
+func (r *RF) Init() []network.Pair {
 	if r.nodeType == Router {
 		if r.pId == "" {
 			// parent request 送信
 			p := Packet{r.id, BroadCastId, r.id, BroadCastId, "preq"}
 
-			return []Pair{
-				{p.Serialize(), BroadCastId},
+			return []network.Pair{
+				{Data: p.Serialize(), ToId: BroadCastId},
 			}
 		} else if !r.joined {
 			jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreq"}
-			return []Pair{{jreq.Serialize(), r.pId}}
+			return []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
 		}
 	}
-	return []Pair{}
+	return []network.Pair{}
 }
 
 func (r *RF) IsJoined() bool {
@@ -72,14 +74,14 @@ func (r *RF) Reset() {
 
 }
 
-func (r *RF) ProcessMessage(m string) []Pair {
-	return []Pair{}
+func (r *RF) ProcessMessage(m string) []network.Pair {
+	return []network.Pair{}
 }
 
-func (r *RF) GenMessageFromM(received []byte) []Pair {
+func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 	packet := DeserializeFrom(received)
 
-	pair := []Pair{}
+	pair := []network.Pair{}
 
 	if packet.NextId != r.id && packet.NextId != BroadCastId {
 		return pair
@@ -92,29 +94,29 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
 			reply := Packet{r.id, packet.FromId, r.id, packet.FromId, "pack"}
-			pair = []Pair{{reply.Serialize(), packet.FromId}}
+			pair = []network.Pair{{Data: reply.Serialize(), ToId: packet.FromId}}
 		} else if packet.Data == "jreq" {
 			r.table[packet.FromId] = packet.PrevId
 			// jackを来た方向に返す
 			jack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "jack"}
-			pair = []Pair{{jack.Serialize(), packet.PrevId}}
+			pair = []network.Pair{{Data: jack.Serialize(), ToId: packet.PrevId}}
 		}
 	} else {
 		if r.IsJoined() {
 			if packet.Data == "preq" {
 				pack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "pack"}
-				pair = []Pair{{pack.Serialize(), packet.PrevId}}
+				pair = []network.Pair{{Data: pack.Serialize(), ToId: packet.PrevId}}
 			} else {
 				r.table[packet.FromId] = packet.PrevId
 				sendPacket := r.routingPacket(packet)
-				pair = []Pair{{sendPacket.Serialize(), sendPacket.NextId}}
+				pair = []network.Pair{{Data: sendPacket.Serialize(), ToId: sendPacket.NextId}}
 			}
 		} else if packet.Data == "pack" && r.pId == "" {
 			r.table[packet.FromId] = packet.FromId
 			r.table[CoordinatorId] = packet.FromId
 			r.pId = packet.FromId
 			jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreq"}
-			pair = []Pair{{jreq.Serialize(), r.pId}}
+			pair = []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
 		} else if packet.Data == "jack" {
 			r.joined = true
 			debug.Debug.Printf("%s joined Network\n", r.id)
@@ -124,12 +126,15 @@ func (r *RF) GenMessageFromM(received []byte) []Pair {
 	if packet.DistId == r.id && packet.Data == "" {
 		return r.ProcessMessage(packet.Data)
 	}
+	if r.reconfiguring {
+		// 
+	}
 	return pair
 }
 
-func (r *RF) GenMessageFromI(distId string, data string) []Pair {
+func (r *RF) GenMessageFromI(distId string, data string) []network.Pair {
 	packet := Packet{r.id, distId, r.id, r.table[distId], data}
-	return []Pair{{packet.Serialize(), r.table[distId]}}
+	return []network.Pair{{Data: packet.Serialize(), ToId: r.table[distId]}}
 }
 
 func (r *RF) routingPacket(p Packet) *Packet {

@@ -1,4 +1,4 @@
-package routing
+package network
 
 type Pair struct {
 	Data []byte
@@ -12,4 +12,6 @@ type RoutingFunction interface {
 	IsJoined() bool
 	ParentId() string
 	Reset()
+	Reconfigure() []Pair
+	InitReConfiguration(id string) []Pair
 }

@@ -1,6 +1,6 @@
 package message
 
-import "github.com/Neccolini/RecSimu/cmd/routing"
+import routing "github.com/Neccolini/RecSimu/cmd/network/routing"
 
 const bytePerFlit = routing.BytePerFlit
 

@@ -9,10 +9,11 @@ import (
 
 	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/message"
+	"github.com/Neccolini/RecSimu/cmd/network"
+	routing "github.com/Neccolini/RecSimu/cmd/network/routing"
 	state "github.com/Neccolini/RecSimu/cmd/node/state"
 	"github.com/Neccolini/RecSimu/cmd/perf"
 	"github.com/Neccolini/RecSimu/cmd/random"
-	"github.com/Neccolini/RecSimu/cmd/routing"
 )
 
 const (
@@ -39,7 +40,7 @@ type Node struct {
 	SendingMessage   message.Message
 	ReceivingMessage message.Message
 
-	RoutingFunction routing.RoutingFunction
+	RoutingFunction network.RoutingFunction
 
 	waitRetries int
 	messageCnt  int
@@ -114,6 +115,8 @@ func (n *Node) SimulateCycle(cycle int) {
 	// 現在の状態に従い，context.nextを更新
 
 	n.SetCycle(cycle)
+
+	n.RoutingFunction.Reconfigure()
 
 	switch n.context.GetState() {
 	case state.Idle:

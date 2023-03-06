@@ -6,9 +6,9 @@ import (
 
 	"github.com/Neccolini/RecSimu/cmd/injection"
 	"github.com/Neccolini/RecSimu/cmd/message"
+	routing "github.com/Neccolini/RecSimu/cmd/network/routing"
 	"github.com/Neccolini/RecSimu/cmd/node"
-	"github.com/Neccolini/RecSimu/cmd/read"
-	"github.com/Neccolini/RecSimu/cmd/routing"
+	"github.com/Neccolini/RecSimu/cmd/rec"
 )
 
 type SimulationConfig struct {
@@ -17,12 +17,12 @@ type SimulationConfig struct {
 	adjacencyList  map[string][]string
 	nodes          map[string]*node.Node
 	injectionTable injection.InjectionTable
-	recInfo        map[int][]read.RecInfo
+	recInfo        map[int][]rec.RecInfo
 	fromId2ToId    map[string][]string // fromId -> toId
 	toId2FromId    map[string][]string // toId -> fromId
 }
 
-func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo, iTable injection.InjectionTable) *SimulationConfig {
+func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]rec.RecInfo, iTable injection.InjectionTable) *SimulationConfig {
 	config := &SimulationConfig{}
 	config.nodeNum = nodeNum
 	config.totalCycle = cycle
@@ -42,6 +42,7 @@ func (config *SimulationConfig) Simulate() error {
 	// サイクルごとのシミュレートを実行
 	for cycle := 1; cycle <= config.totalCycle; cycle++ {
 		// todo トポロジーの変更
+		config.changeNode(cycle)
 
 		// シミュレートを実行
 		if err := config.SimulateCycle(cycle); err != nil {
@@ -166,6 +167,30 @@ func (config *SimulationConfig) deliverMessages() {
 				config.nodes[injection.FromId].MessageReached(injection.InjectionId)
 			}
 			config.nodes[toId].SetReceiving(msg)
+		}
+	}
+}
+
+func (config *SimulationConfig) changeNode(cycle int) {
+	for _, recInfo := range config.recInfo[cycle] {
+		switch recInfo.Operation {
+		case rec.Add, rec.Rejoin:
+			{
+				config.adjacencyList[recInfo.Id] = make([]string, 0, len(recInfo.AdjacencyList))
+				for _, aId := range recInfo.AdjacencyList {
+					config.adjacencyList[recInfo.Id] = append(config.adjacencyList[recInfo.Id], aId)
+					config.adjacencyList[aId] = append(config.adjacencyList[aId], recInfo.Id)
+				}
+				config.nodes[recInfo.Id], _ = node.NewNode(recInfo.Id, recInfo.NodeType)
+			}
+		case rec.Remove:
+			{
+				for _, aId := range config.adjacencyList[recInfo.Id] {
+					config.nodes[aId].InitReConfiguration(recInfo.Id)
+				}
+				config.adjacencyList[recInfo.Id] = nil
+				config.nodes[recInfo.Id].Remove()
+			}
 		}
 	}
 }
