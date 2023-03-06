@@ -160,7 +160,6 @@ func (config *SimulationConfig) deliverMessages() {
 		config.nodes[fromId].SetSending()
 
 		injection, _ := config.injectionTable.QueryById(msg.MessageId)
-		fmt.Printf("%s: %s to %s\n", injection.InjectionId, injection.FromId, injection.DistId)
 		for _, toId := range toIds {
 			if injection.DistId == toId {
 				// perfomance measure end

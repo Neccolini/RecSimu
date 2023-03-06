@@ -1,7 +1,5 @@
 package perf
 
-import "fmt"
-
 const FlitLen = 6
 
 type Perf struct {
@@ -27,7 +25,6 @@ func (p *Perf) Start(injectionId string, cycle int) {
 }
 
 func (p *Perf) End(injectionId string, cycle int) {
-	fmt.Println("span", cycle, p.InjectionId2Cycle[injectionId])
 	p.TotalLatency += cycle - p.InjectionId2Cycle[injectionId] + 1 + FlitLen
 	p.TotalPacketNum += 1
 	p.TotalFlitNum += FlitLen
