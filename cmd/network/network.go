@@ -12,6 +12,5 @@ type RoutingFunction interface {
 	IsJoined() bool
 	ParentId() string
 	Reset()
-	Reconfigure() []Pair
-	InitReConfiguration(id string) []Pair
+	InitReconfiguration() []Pair
 }

@@ -9,6 +9,7 @@ import (
 	routing "github.com/Neccolini/RecSimu/cmd/network/routing"
 	"github.com/Neccolini/RecSimu/cmd/node"
 	"github.com/Neccolini/RecSimu/cmd/rec"
+	"github.com/Neccolini/RecSimu/cmd/utils"
 )
 
 type SimulationConfig struct {
@@ -63,6 +64,7 @@ func (config *SimulationConfig) Simulate() error {
 	for _, node := range config.nodes {
 		averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
 		totalPackets += node.Performance.TotalPacketNum
+		fmt.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
 	}
 	fmt.Printf("total packets: %d\n", totalPackets)
 	fmt.Printf("average latency: %.5f [cycle]\n", averageLatency/float64(config.nodeNum))
@@ -176,21 +178,36 @@ func (config *SimulationConfig) changeNode(cycle int) {
 		switch recInfo.Operation {
 		case rec.Add, rec.Rejoin:
 			{
-				config.adjacencyList[recInfo.Id] = make([]string, 0, len(recInfo.AdjacencyList))
-				for _, aId := range recInfo.AdjacencyList {
-					config.adjacencyList[recInfo.Id] = append(config.adjacencyList[recInfo.Id], aId)
-					config.adjacencyList[aId] = append(config.adjacencyList[aId], recInfo.Id)
-				}
-				config.nodes[recInfo.Id], _ = node.NewNode(recInfo.Id, recInfo.NodeType)
+				config.AddNode(recInfo)
 			}
 		case rec.Remove:
 			{
-				for _, aId := range config.adjacencyList[recInfo.Id] {
-					config.nodes[aId].InitReConfiguration(recInfo.Id)
-				}
-				config.adjacencyList[recInfo.Id] = nil
-				config.nodes[recInfo.Id].Remove()
+				config.RemoveNode(recInfo.Id, cycle)
 			}
 		}
 	}
+}
+
+func (config *SimulationConfig) AddNode(recInfo rec.RecInfo) {
+	config.adjacencyList[recInfo.Id] = make([]string, 0, len(recInfo.AdjacencyList))
+	for _, aId := range recInfo.AdjacencyList {
+		config.adjacencyList[recInfo.Id] = append(config.adjacencyList[recInfo.Id], aId)
+		config.adjacencyList[aId] = append(config.adjacencyList[aId], recInfo.Id)
+	}
+	config.nodes[recInfo.Id], _ = node.NewNode(recInfo.Id, recInfo.NodeType)
+}
+
+func (config *SimulationConfig) RemoveNode(id string, cycle int) {
+	// 接続を削除
+	for _, aId := range config.adjacencyList[id] {
+		config.adjacencyList[aId] = utils.Remove(config.adjacencyList[aId], id)
+	}
+	for _, aId := range config.adjacencyList[id] {
+		if config.nodes[aId].RoutingFunction.ParentId() == id {
+			config.nodes[aId].Performance.RecStart(cycle)
+			config.nodes[aId].InitReconfiguration(id)
+		}
+	}
+	config.adjacencyList[id] = nil
+	config.nodes[id].Remove()
 }

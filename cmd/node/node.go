@@ -116,8 +116,6 @@ func (n *Node) SimulateCycle(cycle int) {
 
 	n.SetCycle(cycle)
 
-	n.RoutingFunction.Reconfigure()
-
 	switch n.context.GetState() {
 	case state.Idle:
 		{
@@ -209,6 +207,10 @@ func (n *Node) processReceivedMessage() {
 	// 受信メッセージが帰ってくればそれをキューにプッシュ
 	packets := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
 	for _, packet := range packets {
+		if packet.ToId == routing.Joined {
+			n.Performance.RecEnd(n.curCycle)
+			continue
+		}
 		n.sendMessages.Push(*message.NewMessage(n.ReceivingMessage.MessageId, n.nodeId, packet.ToId, packet.Data))
 	}
 	n.ReceivingMessage.Clear()

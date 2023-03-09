@@ -7,10 +7,11 @@ type Perf struct {
 	TotalPacketNum    int
 	TotalFlitNum      int
 	InjectionId2Cycle map[string]int
+	recPerf           RecPerf
 }
 
 func NewPerf() *Perf {
-	return &Perf{0, 0, 0, map[string]int{}}
+	return &Perf{0, 0, 0, map[string]int{}, RecPerf{}}
 }
 
 func (p *Perf) Contains(injectionId string) bool {
