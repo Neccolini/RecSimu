@@ -34,3 +34,11 @@ func (s *Set[T]) RandomChoice() T {
 	}()
 	return randomKey
 }
+
+func (s *Set[T]) ToList() []T {
+	list := make([]T, 0, s.Size())
+	for k := range s.hashMap {
+		list = append(list, k)
+	}
+	return list
+}

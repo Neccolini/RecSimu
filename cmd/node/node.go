@@ -9,10 +9,11 @@ import (
 
 	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/message"
+	"github.com/Neccolini/RecSimu/cmd/network"
+	routing "github.com/Neccolini/RecSimu/cmd/network/routing"
 	state "github.com/Neccolini/RecSimu/cmd/node/state"
 	"github.com/Neccolini/RecSimu/cmd/perf"
 	"github.com/Neccolini/RecSimu/cmd/random"
-	"github.com/Neccolini/RecSimu/cmd/routing"
 )
 
 const (
@@ -39,7 +40,7 @@ type Node struct {
 	SendingMessage   message.Message
 	ReceivingMessage message.Message
 
-	RoutingFunction routing.RoutingFunction
+	RoutingFunction network.RoutingFunction
 
 	waitRetries int
 	messageCnt  int
@@ -206,6 +207,10 @@ func (n *Node) processReceivedMessage() {
 	// 受信メッセージが帰ってくればそれをキューにプッシュ
 	packets := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
 	for _, packet := range packets {
+		if packet.ToId == routing.Joined {
+			n.Performance.RecEnd(n.curCycle)
+			continue
+		}
 		n.sendMessages.Push(*message.NewMessage(n.ReceivingMessage.MessageId, n.nodeId, packet.ToId, packet.Data))
 	}
 	n.ReceivingMessage.Clear()

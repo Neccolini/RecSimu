@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/Neccolini/RecSimu/cmd/injection"
+	"github.com/Neccolini/RecSimu/cmd/rec"
 )
 
 type Input struct {
@@ -13,7 +14,7 @@ type Input struct {
 	Cycle           int                   `json:"cycles"`
 	AdjacencyList   map[string][]string   `json:"adjacencies"`
 	NodesType       map[string]string     `json:"nodes"`
-	ReconfigureInfo []RecInfo             `json:"reconfigure"`
+	ReconfigureInfo []rec.RecInfo         `json:"reconfigure"`
 	Injections      []injection.Injection `json:"injections"`
 }
 
@@ -22,7 +23,7 @@ type InputShaped struct {
 	Cycle           int                 `json:"cycles"`
 	AdjacencyList   map[string][]string `json:"adjacencies"`
 	NodesType       map[string]string   `json:"nodes"`
-	ReconfigureInfo map[int][]RecInfo
+	ReconfigureInfo map[int][]rec.RecInfo
 	InjectionTable  injection.InjectionTable
 }
 

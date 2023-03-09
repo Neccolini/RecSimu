@@ -1,16 +1,12 @@
 package read
 
-import "github.com/Neccolini/RecSimu/cmd/injection"
+import (
+	"github.com/Neccolini/RecSimu/cmd/injection"
+	"github.com/Neccolini/RecSimu/cmd/rec"
+)
 
-type RecInfo struct {
-	Id            string   `json:"id"`
-	Cycle         int      `json:"cycle"`
-	Operation     string   `json:"operation"`
-	AdjacencyList []string `json:"adjacencies"`
-}
-
-func MapCycle2RecInfo(recInfos []RecInfo) map[int][]RecInfo {
-	m := map[int][]RecInfo{}
+func MapCycle2RecInfo(recInfos []rec.RecInfo) map[int][]rec.RecInfo {
+	m := map[int][]rec.RecInfo{}
 	for _, recInfo := range recInfos {
 		m[recInfo.Cycle] = append(m[recInfo.Cycle], recInfo)
 	}

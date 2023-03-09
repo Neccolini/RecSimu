@@ -6,9 +6,10 @@ import (
 
 	"github.com/Neccolini/RecSimu/cmd/injection"
 	"github.com/Neccolini/RecSimu/cmd/message"
+	routing "github.com/Neccolini/RecSimu/cmd/network/routing"
 	"github.com/Neccolini/RecSimu/cmd/node"
-	"github.com/Neccolini/RecSimu/cmd/read"
-	"github.com/Neccolini/RecSimu/cmd/routing"
+	"github.com/Neccolini/RecSimu/cmd/rec"
+	"github.com/Neccolini/RecSimu/cmd/utils"
 )
 
 type SimulationConfig struct {
@@ -17,12 +18,12 @@ type SimulationConfig struct {
 	adjacencyList  map[string][]string
 	nodes          map[string]*node.Node
 	injectionTable injection.InjectionTable
-	recInfo        map[int][]read.RecInfo
+	recInfo        map[int][]rec.RecInfo
 	fromId2ToId    map[string][]string // fromId -> toId
 	toId2FromId    map[string][]string // toId -> fromId
 }
 
-func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]read.RecInfo, iTable injection.InjectionTable) *SimulationConfig {
+func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]string, nodesType map[string]string, recInfo map[int][]rec.RecInfo, iTable injection.InjectionTable) *SimulationConfig {
 	config := &SimulationConfig{}
 	config.nodeNum = nodeNum
 	config.totalCycle = cycle
@@ -42,6 +43,7 @@ func (config *SimulationConfig) Simulate() error {
 	// サイクルごとのシミュレートを実行
 	for cycle := 1; cycle <= config.totalCycle; cycle++ {
 		// todo トポロジーの変更
+		config.changeNode(cycle)
 
 		// シミュレートを実行
 		if err := config.SimulateCycle(cycle); err != nil {
@@ -62,6 +64,7 @@ func (config *SimulationConfig) Simulate() error {
 	for _, node := range config.nodes {
 		averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
 		totalPackets += node.Performance.TotalPacketNum
+		fmt.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
 	}
 	fmt.Printf("total packets: %d\n", totalPackets)
 	fmt.Printf("average latency: %.5f [cycle]\n", averageLatency/float64(config.nodeNum))
@@ -168,4 +171,43 @@ func (config *SimulationConfig) deliverMessages() {
 			config.nodes[toId].SetReceiving(msg)
 		}
 	}
+}
+
+func (config *SimulationConfig) changeNode(cycle int) {
+	for _, recInfo := range config.recInfo[cycle] {
+		switch recInfo.Operation {
+		case rec.Add, rec.Rejoin:
+			{
+				config.AddNode(recInfo)
+			}
+		case rec.Remove:
+			{
+				config.RemoveNode(recInfo.Id, cycle)
+			}
+		}
+	}
+}
+
+func (config *SimulationConfig) AddNode(recInfo rec.RecInfo) {
+	config.adjacencyList[recInfo.Id] = make([]string, 0, len(recInfo.AdjacencyList))
+	for _, aId := range recInfo.AdjacencyList {
+		config.adjacencyList[recInfo.Id] = append(config.adjacencyList[recInfo.Id], aId)
+		config.adjacencyList[aId] = append(config.adjacencyList[aId], recInfo.Id)
+	}
+	config.nodes[recInfo.Id], _ = node.NewNode(recInfo.Id, recInfo.NodeType)
+}
+
+func (config *SimulationConfig) RemoveNode(id string, cycle int) {
+	// 接続を削除
+	for _, aId := range config.adjacencyList[id] {
+		config.adjacencyList[aId] = utils.Remove(config.adjacencyList[aId], id)
+	}
+	for _, aId := range config.adjacencyList[id] {
+		if config.nodes[aId].RoutingFunction.ParentId() == id {
+			config.nodes[aId].Performance.RecStart(cycle)
+			config.nodes[aId].InitReconfiguration(id)
+		}
+	}
+	config.adjacencyList[id] = nil
+	config.nodes[id].Remove()
 }
