@@ -163,7 +163,7 @@ func (n *Node) SimulateCycle(cycle int) {
 				log.Fatalf("sending: n.curCount %d > n.curMax %d", n.curCount, n.curMax)
 			}
 			if n.curCount == n.curMax {
-				debug.Debug.Printf("cycle: %d, packet id: %s, curid: %s, distid: %s\n", n.curCycle, n.SendingMessage.MessageId, n.nodeId, n.SendingMessage.ToId())
+				// debug.Debug.Printf("cycle: %d, packet id: %s, curid: %s, distid: %s\n", n.curCycle, n.SendingMessage.MessageId, n.nodeId, n.SendingMessage.ToId())
 				n.curMax = rand.Intn(idleMax) + idleMax
 				n.curCount = 0
 
@@ -260,14 +260,14 @@ func (n *Node) InjectMessage(injectionId string, distId string, data string) {
 		for _, p := range packets {
 			n.sendMessages.Push(*message.NewMessage(injectionId, n.nodeId, p.ToId, p.Data))
 			n.Performance.Start(injectionId, n.curCycle)
-			debug.Debug.Printf("cycle: %d, packetid: %s, start\n", n.curCycle, injectionId)
 		}
 	}
 }
 
 func (n *Node) MessageReached(injectionId string) {
 	if !n.Performance.Contains(injectionId) {
-		log.Fatal("measure not started")
+		return
+		// log.Fatal("measure not started")
 	}
 	n.Performance.End(injectionId, n.curCycle)
 	debug.Debug.Printf("cycle: %d, packetid: %s, end\n", n.curCycle, injectionId)

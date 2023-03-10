@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/injection"
 	"github.com/Neccolini/RecSimu/cmd/message"
 	routing "github.com/Neccolini/RecSimu/cmd/network/routing"
@@ -50,23 +51,25 @@ func (config *SimulationConfig) Simulate() error {
 			return err
 		}
 		// todo 各サイクル後の状態を記録
-		/*
-			debug.Debug.Printf("\ncycle %d\n", cycle)
-			for _, node := range config.nodes {
-				debug.Debug.Println(node.String())
-			}
-		*/
+		debug.Debug.Printf("\ncycle %d\n", cycle)
+		for _, node := range config.nodes {
+			debug.Debug.Println(node.String())
+		}
 	}
 
 	// シミュレーション結果の集計
 	averageLatency := 0.0
 	totalPackets := 0
+	failedPackets := 0
 	for _, node := range config.nodes {
 		averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
 		totalPackets += node.Performance.TotalPacketNum
-		fmt.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
+		failedPackets += node.Performance.FailedPacketNum()
+		if node.Performance.RecResult() != nil {
+			fmt.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
+		}
 	}
-	fmt.Printf("total packets: %d\n", totalPackets)
+	fmt.Printf("total packets: %d / %d\n", totalPackets-failedPackets, totalPackets)
 	fmt.Printf("average latency: %.5f [cycle]\n", averageLatency/float64(config.nodeNum))
 
 	return nil

@@ -44,6 +44,6 @@ func totalPacketNum(cycles int, rate float64) int {
 }
 
 func generatePacket(injectionNum int, fromId string, toId string, cycle int) injection.Injection {
-	InjectionId := "Inj_" + fromId + "_" + strconv.Itoa(injectionNum)
+	InjectionId := "Inj_" + fromId + "_" + toId + "_" + strconv.Itoa(injectionNum)
 	return injection.Injection{InjectionId: InjectionId, Cycle: cycle, FromId: fromId, DistId: toId, Data: ""}
 }
