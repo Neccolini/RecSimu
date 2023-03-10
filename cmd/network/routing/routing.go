@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	BytePerFlit   = 16
+	BytePerFlit   = 8
 	Router        = "Router"
 	Coordinator   = "Coordinator"
 	BroadCastId   = "BroadCast"
@@ -74,7 +74,6 @@ func (r *RF) ProcessMessage(m string) []network.Pair {
 
 func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 	packet := DeserializeFrom(received)
-	debug.Debug.Printf("b id:%s pid:%s packet: %v\n", r.id, r.pId, packet)
 	pair := []network.Pair{}
 
 	if packet.NextId != r.id && packet.NextId != BroadCastId {
@@ -86,7 +85,6 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 	if packet.DistId == r.id && packet.Data == "" {
 		return r.ProcessMessage(packet.Data)
 	}
-	debug.Debug.Printf("a id:%s pid:%s packet: %v\n", r.id, r.pId, packet)
 
 	if r.nodeType == Coordinator {
 		if packet.Data == "preq" {
@@ -95,7 +93,7 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 		} else if packet.Data == "preqR" {
 			reply := Packet{r.id, packet.FromId, r.id, packet.FromId, "packR"}
 			pair = []network.Pair{{Data: reply.Serialize(), ToId: packet.FromId}}
-		} else if packet.Data[:4] == "jreq" {
+		} else if len(packet.Data) >= 4 && packet.Data[:4] == "jreq" {
 			r.table[packet.FromId] = packet.PrevId
 			// jackを来た方向に返す
 			jack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "jack"}
@@ -140,17 +138,16 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 					pair = []network.Pair{{Data: sendPacket.Serialize(), ToId: sendPacket.NextId}}
 				}
 			}
-		} else if packet.Data[:4] == "pack" && r.pId == "" {
+		} else if len(packet.Data) >= 4 && packet.Data[:4] == "pack" && r.pId == "" {
 			r.recState.on = false
-			r.table[packet.FromId] = packet.FromId
-			r.table[CoordinatorId] = packet.FromId
+			r.table[CoordinatorId] = packet.PrevId
 			r.pId = packet.FromId
 			jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreq"}
 			if len(packet.Data) == 5 {
 				jreq = Packet{r.id, CoordinatorId, r.id, r.pId, "jreqR"}
 			}
 			pair = []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
-		} else if packet.Data[:4] == "jack" {
+		} else if len(packet.Data) >= 4 && packet.Data[:4] == "jack" {
 			r.joined = true
 			if r.recState.isParentAlive {
 				p := Packet{r.id, r.recState.prevParentId, r.id, r.recState.prevParentId, "packR"}
@@ -165,12 +162,19 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 }
 
 func (r *RF) GenMessageFromI(distId string, data string) []network.Pair {
-	packet := Packet{r.id, distId, r.id, r.table[distId], data}
-	return []network.Pair{{Data: packet.Serialize(), ToId: r.table[distId]}}
+	nextId := r.pId
+	if val, ok := r.table[distId]; ok {
+		nextId = val
+	}
+	packet := Packet{r.id, distId, r.id, nextId, data}
+	return []network.Pair{{Data: packet.Serialize(), ToId: nextId}}
 }
 
 func (r *RF) routingPacket(p Packet) *Packet {
 	if p.DistId == BroadCastId {
+		return nil
+	}
+	if p.FromId == r.id {
 		return nil
 	}
 	var neighborDistId string
@@ -179,7 +183,6 @@ func (r *RF) routingPacket(p Packet) *Packet {
 		neighborDistId = val
 	} else { // テーブルに存在しない場合
 		neighborDistId = r.pId
-		r.table[p.DistId] = p.PrevId
 	}
 	routingPacket := Packet{p.FromId, p.DistId, r.id, neighborDistId, p.Data}
 	return &routingPacket

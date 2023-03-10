@@ -23,10 +23,15 @@ func (p *Perf) Contains(injectionId string) bool {
 
 func (p *Perf) Start(injectionId string, cycle int) {
 	p.InjectionId2Cycle[injectionId] = cycle
+	p.TotalPacketNum += 1
 }
 
 func (p *Perf) End(injectionId string, cycle int) {
 	p.TotalLatency += cycle - p.InjectionId2Cycle[injectionId] + 1 + FlitLen
-	p.TotalPacketNum += 1
+	delete(p.InjectionId2Cycle, injectionId)
 	p.TotalFlitNum += FlitLen
+}
+
+func (p *Perf) FailedPacketNum() int {
+	return len(p.InjectionId2Cycle)
 }
