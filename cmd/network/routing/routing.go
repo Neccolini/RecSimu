@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	BytePerFlit   = 8
+	BytePerFlit   = 32
 	Router        = "Router"
 	Coordinator   = "Coordinator"
 	BroadCastId   = "BroadCast"
@@ -82,6 +82,7 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 	if r.drainPacket(packet) {
 		return pair
 	}
+	debug.Debug.Printf("%s: %v\n", r.id, packet)
 	if packet.DistId == r.id && packet.Data == "" {
 		return r.ProcessMessage(packet.Data)
 	}
