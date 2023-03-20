@@ -1,12 +1,15 @@
 package network
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/network"
 )
 
 const (
-	BytePerFlit   = 32
+	BytePerFlit   = 64
 	Router        = "Router"
 	Coordinator   = "Coordinator"
 	BroadCastId   = "BroadCast"
@@ -29,7 +32,7 @@ func NewRoutingFunction(id string, nodeType string) *RF {
 	r.nodeType = nodeType
 	r.pId = ""
 	r.table = map[string]string{}
-
+	r.recState = *NewRecState()
 	if r.nodeType == Coordinator {
 		r.joined = true
 	}
@@ -37,6 +40,7 @@ func NewRoutingFunction(id string, nodeType string) *RF {
 }
 
 func (r *RF) Init() []network.Pair {
+	fmt.Println(r.id, "Init Called", r.recState.on)
 	if r.recState.on {
 		return r.reconfigure()
 	}
@@ -91,7 +95,7 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 		if packet.Data == "preq" {
 			reply := Packet{r.id, packet.FromId, r.id, packet.FromId, "pack"}
 			pair = []network.Pair{{Data: reply.Serialize(), ToId: packet.FromId}}
-		} else if packet.Data == "preqR" {
+		} else if packet.Data == "preqR" && !r.recState.isUpNode.Contains(packet.FromId) {
 			reply := Packet{r.id, packet.FromId, r.id, packet.FromId, "packR"}
 			pair = []network.Pair{{Data: reply.Serialize(), ToId: packet.FromId}}
 		} else if len(packet.Data) >= 4 && packet.Data[:4] == "jreq" {
@@ -117,19 +121,27 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 				pack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "packR"}
 				pair = []network.Pair{{Data: pack.Serialize(), ToId: packet.PrevId}}
 			} else if packet.Data == "rreq" {
+				fmt.Println(r.id, "rreq received")
 				r.recState.isParentAlive = true
-				return r.InitReconfiguration()
-			} else if packet.Data == "fail" {
-				// 別の子に対してブロードキャストを依頼する
-				if !r.recState.NextChild() {
-					r.recState.childRequestIndex = 0
-					return r.InitReconfiguration()
-				}
-				r.recState.waiting = true
+
+				r.InitReconfiguration()
 				return r.reconfigure()
+			} else if packet.Data == "fail" {
+				return r.failReceive()
+			} else if packet.Data == "rec" {
+				r.recState.on = true
+				r.recState.waiting = true
+				r.recState.broadcastedRecFlag = true
+				packetList := []network.Pair{}
+				for _, distId := range r.recState.childList {
+					p := Packet{r.id, distId, r.id, distId, "rec"}
+					packetList = append(packetList, network.Pair{Data: p.Serialize(), ToId: distId})
+				}
+				r.recState.broadcastedRecFlag = true
+				return packetList
 			} else {
 				// childList に追加
-				if packet.Data == "jreqR" && packet.PrevId == packet.FromId && !r.recState.ChildListContains(packet.FromId) {
+				if packet.Data == "jreq" && packet.PrevId == packet.FromId && !r.recState.ChildListContains(packet.FromId) {
 					r.recState.childList = append(r.recState.childList, packet.FromId)
 				}
 
@@ -147,12 +159,20 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 			if len(packet.Data) == 5 {
 				jreq = Packet{r.id, CoordinatorId, r.id, r.pId, "jreqR"}
 			}
+			fmt.Println(r.id, jreq)
 			pair = []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
 		} else if len(packet.Data) >= 4 && packet.Data[:4] == "jack" {
 			r.joined = true
 			if r.recState.isParentAlive {
 				p := Packet{r.id, r.recState.prevParentId, r.id, r.recState.prevParentId, "packR"}
 				pair = append(pair, network.Pair{Data: p.Serialize(), ToId: r.recState.prevParentId})
+			}
+
+			if len(packet.Data) >= 6 {
+				arr := strings.Split(packet.Data[4:], "/")
+				for _, upId := range arr {
+					r.recState.isUpNode.Add(upId)
+				}
 			}
 
 			debug.Debug.Printf("%s joined Network\n", r.id)
@@ -184,6 +204,10 @@ func (r *RF) routingPacket(p Packet) *Packet {
 		neighborDistId = val
 	} else { // テーブルに存在しない場合
 		neighborDistId = r.pId
+	}
+	// 新規ノードにとって，Up方向のノード番号がわかるようにデータ部分に自身のIDを追加する
+	if p.Data == "jack" {
+		p.Data += "/" + r.id
 	}
 	routingPacket := Packet{p.FromId, p.DistId, r.id, neighborDistId, p.Data}
 	return &routingPacket

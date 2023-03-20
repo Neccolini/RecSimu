@@ -1,0 +1,30 @@
+0.01
+total packets: 4076 / 4076
+average latency: 24.35658 [cycle]
+0.02
+total packets: 8121 / 8121
+average latency: 30.29083 [cycle]
+0.03
+total packets: 12244 / 12244
+average latency: 62.49441 [cycle]
+0.04
+total packets: 15086 / 15850
+average latency: 3064.87151 [cycle]
+0.05
+total packets: 13924 / 20484
+average latency: 8332.06260 [cycle]
+0.06
+total packets: 14652 / 24375
+average latency: 8574.59873 [cycle]
+0.07
+total packets: 14329 / 28675
+average latency: 7472.47268 [cycle]
+0.08
+total packets: 13978 / 32500
+average latency: 6661.81455 [cycle]
+0.09
+total packets: 14962 / 36933
+average latency: 6492.29829 [cycle]
+0.10
+total packets: 13788 / 40625
+average latency: 6149.58663 [cycle]

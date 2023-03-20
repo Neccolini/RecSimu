@@ -42,3 +42,8 @@ func (s *Set[T]) ToList() []T {
 	}
 	return list
 }
+
+func (s *Set[T]) Contains(t T) bool {
+	_, ok := s.hashMap[t]
+	return ok
+}
