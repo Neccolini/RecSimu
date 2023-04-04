@@ -47,3 +47,7 @@ func (s *Set[T]) Contains(t T) bool {
 	_, ok := s.hashMap[t]
 	return ok
 }
+
+func (s *Set[T]) Reset() {
+	s.hashMap = map[T]struct{}{}
+}

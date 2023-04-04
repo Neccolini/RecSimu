@@ -20,10 +20,10 @@ type RecState struct {
 	waiting            bool
 	isParentAlive      bool
 	broadcastedRecFlag bool
-	isUpNode set.Set[string]
+	isUpNode           set.Set[string]
 }
 
-func NewRecState() *RecState{
+func NewRecState() *RecState {
 	return &RecState{false, 0, 0, []string{}, "", false, false, false, *set.NewSet("--1")}
 }
 
@@ -65,23 +65,21 @@ func (r *RF) InitReconfiguration() []network.Pair {
 }
 
 func (r *RF) reconfigure() []network.Pair {
+	r.recState.on = true
 	// 子がブロードキャストしてくれるのを待つ
 	fmt.Println(r.id, r.recState.waiting, r.recState.broadcastedRecFlag, r.recState.resend)
 	if r.recState.waiting {
 		return []network.Pair{}
 	}
 	if !r.recState.broadcastedRecFlag {
-		packetList := []network.Pair{}
-		for _, distId := range r.recState.childList {
-			p := Packet{r.id, distId, r.id, distId, "rec"}
-			packetList = append(packetList, network.Pair{Data: p.Serialize(), ToId: distId})
-		}
+		packetList := r.multiCastChildren("rec")
 		r.recState.broadcastedRecFlag = true
 		return packetList
 	}
 	// todo ダメそうだったら子ノードに配信を依頼する
 	if r.recState.resend == RecResendMax {
 		r.recState.resend = 0
+		fmt.Printf("%s %d %v\n", r.id, r.recState.childRequestIndex, r.recState.childList)
 		// leaf node なら
 		if len(r.recState.childList) == 0 || r.recState.childRequestIndex >= len(r.recState.childList) {
 			// 自分の親に対してfailedを送る
@@ -95,6 +93,9 @@ func (r *RF) reconfigure() []network.Pair {
 		fmt.Println(r.id, "rreq 送信 to", childId)
 		p := Packet{r.id, childId, r.id, childId, "rreq"}
 		r.recState.waiting = true
+		fmt.Println(r.recState.childRequestIndex)
+		NewRecState().NextChild()
+		fmt.Println(r.recState.childRequestIndex)
 		return []network.Pair{{Data: p.Serialize(), ToId: childId}}
 	}
 	r.recState.resend++

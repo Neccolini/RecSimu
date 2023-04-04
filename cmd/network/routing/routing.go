@@ -139,6 +139,43 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 				}
 				r.recState.broadcastedRecFlag = true
 				return packetList
+			} else if packet.Data == "packR" && packet.DistId == r.id {
+				// r.recState.on = false
+				r.pId = packet.FromId
+				jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreqR"}
+				fmt.Println(r.id, jreq)
+				pair = []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
+			} else if len(packet.Data) >= 5 && packet.Data[:5] == "jackR" && packet.DistId == r.id {
+				if packet.FromId != CoordinatorId && !r.recState.on {
+					fmt.Println(r.id)
+					return []network.Pair{}
+				}
+				// 自分宛にjackRが届いた
+				if r.recState.isParentAlive {
+					p := Packet{r.id, r.recState.prevParentId, r.id, r.recState.prevParentId, packet.Data}
+					pair = append(pair, network.Pair{Data: p.Serialize(), ToId: r.recState.prevParentId})
+				}
+
+				if len(packet.Data) >= 7 {
+					r.recState.isUpNode.Reset()
+					arr := strings.Split(packet.Data[5:], "/")
+					for _, upId := range arr {
+						r.recState.isUpNode.Add(upId)
+					}
+				}
+
+				// 親を設定
+				r.pId = packet.PrevId
+				
+				// 子に対して再構成が完了したことを伝える．
+				pair = append(pair,r.multiCastChildren(packet.Data)...)
+
+				// 再構成終了
+				r.recState.Reset()
+
+				debug.Debug.Printf("%s rejoined Network\n", r.id)
+				pair = append(pair, network.Pair{Data: nil, ToId: Joined})
+				return pair
 			} else {
 				// childList に追加
 				if packet.Data == "jreq" && packet.PrevId == packet.FromId && !r.recState.ChildListContains(packet.FromId) {
@@ -152,8 +189,8 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 				}
 			}
 		} else if len(packet.Data) >= 4 && packet.Data[:4] == "pack" && r.pId == "" {
-			r.recState.on = false
-			r.table[CoordinatorId] = packet.PrevId
+			// r.recState.on = false
+			// r.table[CoordinatorId] = packet.PrevId
 			r.pId = packet.FromId
 			jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreq"}
 			if len(packet.Data) == 5 {
@@ -205,8 +242,11 @@ func (r *RF) routingPacket(p Packet) *Packet {
 	} else { // テーブルに存在しない場合
 		neighborDistId = r.pId
 	}
+	if p.Data == "jreqR" {
+		r.table[p.FromId] = p.PrevId
+	}
 	// 新規ノードにとって，Up方向のノード番号がわかるようにデータ部分に自身のIDを追加する
-	if p.Data == "jack" {
+	if p.Data[:4] == "jack" {
 		p.Data += "/" + r.id
 	}
 	routingPacket := Packet{p.FromId, p.DistId, r.id, neighborDistId, p.Data}
@@ -219,4 +259,13 @@ func (r *RF) drainPacket(p Packet) bool {
 		return true
 	}
 	return false
+}
+
+func (r *RF) multiCastChildren(msg string) []network.Pair {
+	packetList := []network.Pair{}
+	for _, distId := range r.recState.childList {
+		p := Packet{r.id, distId, r.id, distId, msg}
+		packetList = append(packetList, network.Pair{Data: p.Serialize(), ToId: distId})
+	}
+	return packetList
 }
