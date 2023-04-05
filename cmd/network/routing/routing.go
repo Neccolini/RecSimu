@@ -1,7 +1,6 @@
 package network
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/Neccolini/RecSimu/cmd/debug"
@@ -40,7 +39,6 @@ func NewRoutingFunction(id string, nodeType string) *RF {
 }
 
 func (r *RF) Init() []network.Pair {
-	fmt.Println(r.id, "Init Called", r.recState.on)
 	if r.recState.on {
 		return r.reconfigure()
 	}
@@ -121,7 +119,6 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 				pack := Packet{r.id, packet.FromId, r.id, packet.PrevId, "packR"}
 				pair = []network.Pair{{Data: pack.Serialize(), ToId: packet.PrevId}}
 			} else if packet.Data == "rreq" {
-				fmt.Println(r.id, "rreq received")
 				r.recState.isParentAlive = true
 
 				r.InitReconfiguration()
@@ -142,14 +139,13 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 			} else if packet.Data == "packR" && packet.DistId == r.id {
 				// r.recState.on = false
 				r.pId = packet.FromId
-				jreq := Packet{r.id, CoordinatorId, r.id, r.pId, "jreqR"}
-				fmt.Println(r.id, jreq)
-				pair = []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
+				jreq := Packet{r.id, CoordinatorId, r.id, packet.PrevId, "jreqR"}
+				pair = []network.Pair{{Data: jreq.Serialize(), ToId: packet.PrevId}}
 			} else if len(packet.Data) >= 5 && packet.Data[:5] == "jackR" && packet.DistId == r.id {
 				if packet.FromId != CoordinatorId && !r.recState.on {
-					fmt.Println(r.id)
 					return []network.Pair{}
 				}
+				debug.Debug.Println("OK", r.recState.prevParentId, r.recState.isParentAlive)
 				// 自分宛にjackRが届いた
 				if r.recState.isParentAlive {
 					p := Packet{r.id, r.recState.prevParentId, r.id, r.recState.prevParentId, packet.Data}
@@ -166,9 +162,11 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 
 				// 親を設定
 				r.pId = packet.PrevId
-				
+
+				r.updateTableValue(r.recState.prevParentId, r.pId)
+
 				// 子に対して再構成が完了したことを伝える．
-				pair = append(pair,r.multiCastChildren(packet.Data)...)
+				pair = append(pair, r.multiCastChildren(packet.Data)...)
 
 				// 再構成終了
 				r.recState.Reset()
@@ -196,7 +194,7 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 			if len(packet.Data) == 5 {
 				jreq = Packet{r.id, CoordinatorId, r.id, r.pId, "jreqR"}
 			}
-			fmt.Println(r.id, jreq)
+
 			pair = []network.Pair{{Data: jreq.Serialize(), ToId: r.pId}}
 		} else if len(packet.Data) >= 4 && packet.Data[:4] == "jack" {
 			r.joined = true
@@ -235,6 +233,10 @@ func (r *RF) routingPacket(p Packet) *Packet {
 	if p.FromId == r.id {
 		return nil
 	}
+	if p.Data == "jreqR" {
+		r.table[p.FromId] = p.PrevId
+	}
+
 	var neighborDistId string
 	// テーブルに存在したら
 	if val, ok := r.table[p.DistId]; ok {
@@ -242,14 +244,12 @@ func (r *RF) routingPacket(p Packet) *Packet {
 	} else { // テーブルに存在しない場合
 		neighborDistId = r.pId
 	}
-	if p.Data == "jreqR" {
-		r.table[p.FromId] = p.PrevId
-	}
 	// 新規ノードにとって，Up方向のノード番号がわかるようにデータ部分に自身のIDを追加する
 	if p.Data[:4] == "jack" {
 		p.Data += "/" + r.id
 	}
 	routingPacket := Packet{p.FromId, p.DistId, r.id, neighborDistId, p.Data}
+	debug.Debug.Printf("%s routing %v -> %v\n", r.id, p, routingPacket)
 	return &routingPacket
 }
 

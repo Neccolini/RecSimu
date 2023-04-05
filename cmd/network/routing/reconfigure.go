@@ -1,7 +1,7 @@
 package network
 
 import (
-	"fmt"
+	"github.com/Neccolini/RecSimu/cmd/debug"
 
 	"github.com/Neccolini/RecSimu/cmd/network"
 	"github.com/Neccolini/RecSimu/cmd/set"
@@ -54,8 +54,9 @@ func (r *RecState) Reset() {
 }
 
 func (r *RF) InitReconfiguration() []network.Pair {
-	fmt.Println(r.id, "InitReconfiguration Called")
-	r.recState.prevParentId = r.pId
+	if r.recState.prevParentId == "" {
+		r.recState.prevParentId = r.pId
+	}
 	r.pId = ""
 	r.recState.on = true
 	r.recState.waiting = false
@@ -67,7 +68,7 @@ func (r *RF) InitReconfiguration() []network.Pair {
 func (r *RF) reconfigure() []network.Pair {
 	r.recState.on = true
 	// 子がブロードキャストしてくれるのを待つ
-	fmt.Println(r.id, r.recState.waiting, r.recState.broadcastedRecFlag, r.recState.resend)
+	// fmt.Println(r.id, r.recState.waiting, r.recState.broadcastedRecFlag, r.recState.resend)
 	if r.recState.waiting {
 		return []network.Pair{}
 	}
@@ -79,7 +80,7 @@ func (r *RF) reconfigure() []network.Pair {
 	// todo ダメそうだったら子ノードに配信を依頼する
 	if r.recState.resend == RecResendMax {
 		r.recState.resend = 0
-		fmt.Printf("%s %d %v\n", r.id, r.recState.childRequestIndex, r.recState.childList)
+		// fmt.Printf("%s %d %v\n", r.id, r.recState.childRequestIndex, r.recState.childList)
 		// leaf node なら
 		if len(r.recState.childList) == 0 || r.recState.childRequestIndex >= len(r.recState.childList) {
 			// 自分の親に対してfailedを送る
@@ -90,22 +91,29 @@ func (r *RF) reconfigure() []network.Pair {
 		}
 
 		childId := r.recState.childList[r.recState.childRequestIndex]
-		fmt.Println(r.id, "rreq 送信 to", childId)
+		debug.Debug.Println(r.id, "rreq 送信 to", childId)
 		p := Packet{r.id, childId, r.id, childId, "rreq"}
 		r.recState.waiting = true
-		fmt.Println(r.recState.childRequestIndex)
-		NewRecState().NextChild()
-		fmt.Println(r.recState.childRequestIndex)
+
+		r.recState.NextChild()
+
 		return []network.Pair{{Data: p.Serialize(), ToId: childId}}
 	}
 	r.recState.resend++
-	fmt.Println(r.id, "preqR 送信")
+
 	p := Packet{r.id, BroadCastId, r.id, BroadCastId, "preqR"}
 	return []network.Pair{{Data: p.Serialize(), ToId: BroadCastId}}
 }
 
 func (r *RF) failReceive() []network.Pair {
-	fmt.Println(r.id, "failReceived")
 	r.recState.waiting = false
 	return r.reconfigure()
+}
+
+func (r *RF) updateTableValue(from string, to string) {
+	for k, v := range r.table {
+		if v == from {
+			r.table[k] = to
+		}
+	}
 }
