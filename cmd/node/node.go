@@ -134,7 +134,7 @@ func (n *Node) SimulateCycle(cycle int) {
 				n.curCount = 0
 
 				n.context.SetNext(state.Sendtrying)
-			} else if n.curCount >= n.curMax {
+			} else {
 				n.Init()
 			}
 		}

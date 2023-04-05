@@ -128,7 +128,7 @@ func (config *SimulationConfig) broadCastMessage(msg message.Message) {
 			// 宛先がある場合，その宛先がbusyなら失敗
 			return
 		}
-		if msg.ToId() == routing.BroadCastId && adjacentNode.IsJoined() &&
+		if msg.ToId() == routing.BroadCastId &&
 			(adjacentNode.IsIdle() || adjacentNode.IsWaiting()) {
 			success = true
 		}
