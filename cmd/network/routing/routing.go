@@ -245,7 +245,7 @@ func (r *RF) routingPacket(p Packet) *Packet {
 		neighborDistId = r.pId
 	}
 	// 新規ノードにとって，Up方向のノード番号がわかるようにデータ部分に自身のIDを追加する
-	if p.Data[:4] == "jack" {
+	if len(p.Data) >= 4 && p.Data[:4] == "jack" {
 		p.Data += "/" + r.id
 	}
 	routingPacket := Packet{p.FromId, p.DistId, r.id, neighborDistId, p.Data}
