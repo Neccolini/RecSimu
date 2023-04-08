@@ -2,24 +2,15 @@ package gen
 
 import (
 	"log"
-	"math/rand"
-	"strconv"
 
 	"github.com/Neccolini/RecSimu/cmd/set"
-	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/vg"
 )
 
 type randomTopology struct {
 	idList           []string
 	nodesPositionMap map[position]string
 	spaces           set.Set[position]
-}
-
-type position struct {
-	y int
-	x int
 }
 
 func RandomNetwork(nodeNum int, plotFilePath string) map[string][]string {
@@ -35,18 +26,6 @@ func RandomNetwork(nodeNum int, plotFilePath string) map[string][]string {
 	plotNetwork(plotData, plotFilePath)
 
 	return adjacencyList
-}
-
-func nodeIdGen(nodeNum int) []string {
-	idList := make([]string, nodeNum)
-
-	for i := 0; i < nodeNum; i++ {
-		idList[i] = strconv.Itoa(i)
-	}
-	rand.Shuffle(nodeNum, func(i, j int) {
-		idList[i], idList[j] = idList[j], idList[i]
-	})
-	return idList
 }
 
 func NewRandomTopology(idList []string) *randomTopology {
@@ -101,24 +80,4 @@ func (rt *randomTopology) buildNetwork() map[string][]string {
 		adjacencyList[id] = resList
 	}
 	return adjacencyList
-}
-
-func (pos *position) adjacentPos() []position {
-	return []position{
-		{pos.y - 1, pos.x},
-		{pos.y, pos.x + 1},
-		{pos.y + 1, pos.x},
-		{pos.y, pos.x - 1},
-	}
-}
-
-func (pos *position) PlotterXY() plotter.XY {
-	return plotter.XY{X: float64(pos.x), Y: float64(pos.y)}
-}
-
-func plotNetwork(xys plotter.XYs, plotFilePath string) {
-	p := plot.New()
-	s, _ := plotter.NewScatter(xys)
-	p.Add(s, plotter.NewGrid())
-	p.Save(4*vg.Inch, 4*vg.Inch, plotFilePath)
 }

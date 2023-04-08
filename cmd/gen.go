@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/Neccolini/RecSimu/cmd/gen"
 	"github.com/spf13/cobra"
@@ -21,11 +23,6 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		nodeNum, err := cmd.Flags().GetInt("nodenum")
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		cycles, err := cmd.Flags().GetInt("cycles")
 		if err != nil {
 			log.Fatal(err)
@@ -39,19 +36,60 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			log.Fatal(err)
 		}
+		rawTopology, err := cmd.Flags().GetString("topology")
+		topology := strings.Fields(rawTopology)
 
-		if err := gen.GenerateNetwork(filePath, nodeNum, cycles, rate); err != nil {
+		if err != nil {
 			log.Fatal(err)
+		}
+		switch topology[0] {
+		case "random":
+			{
+				if len(topology) < 2 {
+					log.Fatal("usage: -t random <the number of nudes>")
+				}
+				nodeNum, err := strconv.Atoi(topology[1])
+				if err != nil {
+					log.Fatal(err)
+				}
+				config := gen.NewConfig(topology[0], []int{nodeNum})
+				if err := gen.GenerateNetwork(*config, filePath, cycles, rate); err != nil {
+					log.Fatal(err)
+				}
+			}
+		case "mesh":
+			{
+				if len(topology) < 3 {
+					log.Fatal("usage: -t mesh <rows> <columns>")
+				}
+				rows, err := strconv.Atoi(topology[1])
+				if err != nil {
+					log.Fatal(err)
+				}
+				columns, err := strconv.Atoi(topology[2])
+				if err != nil {
+					log.Fatal(err)
+				}
+				config := gen.NewConfig(topology[0], []int{rows, columns})
+				if err := gen.GenerateNetwork(*config, filePath, cycles, rate); err != nil {
+					log.Fatal(err)
+				}
+			}
+		default:
+			{
+				log.Fatalf("topology %s is not defined", topology[0])
+			}
 		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(genCmd)
-	genCmd.Flags().IntP("nodenum", "n", 0, "the number of nodes")
+	genCmd.PersistentFlags().StringP("topology", "t", "random 100", "topology: random or mesh")
 	genCmd.Flags().IntP("cycles", "c", 0, "cycles")
 	genCmd.Flags().Float64P("rate", "r", 0.01, "packet injection rate")
 	genCmd.Flags().StringP("file", "f", "", "filepath")
+
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
