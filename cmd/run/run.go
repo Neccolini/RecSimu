@@ -65,6 +65,9 @@ func (config *SimulationConfig) Simulate() error {
 		averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
 		totalPackets += node.Performance.TotalPacketNum
 		failedPackets += node.Performance.FailedPacketNum()
+		if len(node.Performance.InjectionId2Cycle) != 0 {
+			debug.Debug.Printf("%s: %v\n", node.Id(), node.Performance.InjectionId2Cycle)
+		}
 		if node.Performance.RecResult() != nil {
 			fmt.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
 		}

@@ -36,9 +36,13 @@ func (rt *meshTopology) create() error {
 	for _, id := range rt.idList {
 		pos := position{cur / rt.columns, cur % rt.columns}
 		rt.nodesPositionMap[pos] = id
+		if cur != 0 && cur%rt.columns == 0 {
+			debug.Debug.Println()
+		}
+		debug.Debug.Printf("%s ", id)
 		cur++
 	}
-	debug.Debug.Printf("map: %v\n", rt.nodesPositionMap)
+	debug.Debug.Println()
 	return nil
 }
 
