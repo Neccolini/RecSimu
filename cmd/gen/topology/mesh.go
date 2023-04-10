@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"github.com/Neccolini/RecSimu/cmd/debug"
 	"gonum.org/v1/plot/plotter"
 )
 
@@ -37,6 +38,7 @@ func (rt *meshTopology) create() error {
 		rt.nodesPositionMap[pos] = id
 		cur++
 	}
+	debug.Debug.Printf("map: %v\n", rt.nodesPositionMap)
 	return nil
 }
 

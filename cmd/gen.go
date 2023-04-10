@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Neccolini/RecSimu/cmd/debug"
 	"github.com/Neccolini/RecSimu/cmd/gen"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +24,12 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		debugBoolean, err := cmd.Flags().GetBool("debug")
+		if err != nil {
+			log.Fatal(err)
+		}
+		debug.Debug.On = debugBoolean
+
 		cycles, err := cmd.Flags().GetInt("cycles")
 		if err != nil {
 			log.Fatal(err)
@@ -85,6 +92,7 @@ to quickly create a Cobra application.`,
 
 func init() {
 	rootCmd.AddCommand(genCmd)
+	genCmd.Flags().BoolP("debug", "d", false, "debug mode")
 	genCmd.PersistentFlags().StringP("topology", "t", "random 100", "topology: random or mesh")
 	genCmd.Flags().IntP("cycles", "c", 0, "cycles")
 	genCmd.Flags().Float64P("rate", "r", 0.01, "packet injection rate")
