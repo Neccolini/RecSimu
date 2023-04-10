@@ -180,7 +180,7 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 					r.recState.childList = append(r.recState.childList, packet.FromId)
 				}
 
-				r.table[packet.FromId] = packet.PrevId
+				// r.table[packet.FromId] = packet.PrevId
 				sendPacket := r.routingPacket(packet)
 				if sendPacket != nil {
 					pair = []network.Pair{{Data: sendPacket.Serialize(), ToId: sendPacket.NextId}}
@@ -233,7 +233,10 @@ func (r *RF) routingPacket(p Packet) *Packet {
 	if p.FromId == r.id {
 		return nil
 	}
-	if p.Data == "jreqR" {
+	if p.DistId == r.id {
+		return nil
+	}
+	if len(p.Data) >= 4 && p.Data[:4] == "jreq" {
 		r.table[p.FromId] = p.PrevId
 	}
 
