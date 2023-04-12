@@ -84,10 +84,16 @@ func (r *RF) reconfigure() []network.Pair {
 		// leaf node なら
 		if len(r.recState.childList) == 0 || r.recState.childRequestIndex >= len(r.recState.childList) {
 			// 自分の親に対してfailedを送る
-			p := Packet{r.id, r.recState.prevParentId, r.id, r.recState.prevParentId, "fail"}
-			r.recState.waiting = true
-			r.recState.childRequestIndex = 0
-			return []network.Pair{{Data: p.Serialize(), ToId: r.recState.prevParentId}}
+			if r.recState.isParentAlive {
+				p := Packet{r.id, r.recState.prevParentId, r.id, r.recState.prevParentId, "fail"}
+				r.recState.waiting = true
+				r.recState.childRequestIndex = 0
+				return []network.Pair{{Data: p.Serialize(), ToId: r.recState.prevParentId}}
+			} else if len(r.recState.childList) > 0 {
+				r.recState.childRequestIndex = 0
+			} else {
+				return []network.Pair{}
+			}
 		}
 
 		childId := r.recState.childList[r.recState.childRequestIndex]
