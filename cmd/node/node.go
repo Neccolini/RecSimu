@@ -47,7 +47,7 @@ type Node struct {
 	Performance perf.Perf
 }
 
-func NewNode(id string, nodeType string) (*Node, error) {
+func NewNode(id string, nodeType string, rejoin bool) (*Node, error) {
 	n := &Node{}
 	n.nodeId = id
 	n.nodeType = nodeType
@@ -58,15 +58,19 @@ func NewNode(id string, nodeType string) (*Node, error) {
 	n.sendMessages = *message.NewMessageQueue(50) // todo: the number of initial capacity
 
 	n.RoutingFunction = routing.NewRoutingFunction(n.nodeId, n.nodeType)
-	n.Init()
 
+	if rejoin {
+		n.RoutingFunction.InitReconfiguration()
+	} else {
+		n.Init()
+	}
 	return n, nil
 }
 
 func (n *Node) Init() error {
 	// 開始メッセージ生成
 	packets := n.RoutingFunction.Init()
-
+	debug.Debug.Println(n.nodeId, packets)
 	for _, packet := range packets {
 		n.sendMessages.Push(*message.NewMessage(n.newMessageId(), n.nodeId, packet.ToId, packet.Data))
 	}
@@ -208,6 +212,7 @@ func (n *Node) processReceivedMessage() {
 	packets := n.RoutingFunction.GenMessageFromM(n.ReceivingMessage.Data)
 	for _, packet := range packets {
 		if packet.ToId == routing.Joined {
+			debug.Debug.Println(n.nodeId, n.curCycle, n.Performance.RecInitCycle())
 			n.Performance.RecEnd(n.curCycle)
 			continue
 		}
