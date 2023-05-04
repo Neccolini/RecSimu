@@ -81,10 +81,10 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 	if packet.NextId != r.id && packet.NextId != BroadCastId {
 		return pair
 	}
+	debug.Debug.Printf("%s: %v\n", r.id, packet)
 	if r.drainPacket(packet) {
 		return pair
 	}
-	debug.Debug.Printf("%s: %v\n", r.id, packet)
 	if packet.DistId == r.id && packet.Data == "" {
 		return r.ProcessMessage(packet.Data)
 	}
@@ -145,6 +145,10 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 				if packet.FromId != CoordinatorId && !r.recState.on {
 					return []network.Pair{}
 				}
+				if r.pId != packet.PrevId {
+					pair = append(pair, network.Pair{Data: nil, ToId: Joined})
+				}
+
 				debug.Debug.Println("OK", r.recState.prevParentId, r.recState.isParentAlive)
 				// 自分宛にjackRが届いた
 				if r.recState.isParentAlive {
@@ -172,7 +176,6 @@ func (r *RF) GenMessageFromM(received []byte) []network.Pair {
 				r.recState.Reset()
 
 				debug.Debug.Printf("%s rejoined Network\n", r.id)
-				pair = append(pair, network.Pair{Data: nil, ToId: Joined})
 				return pair
 			} else {
 				// childList に追加

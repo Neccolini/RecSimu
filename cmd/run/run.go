@@ -11,6 +11,7 @@ import (
 	"github.com/Neccolini/RecSimu/cmd/node"
 	"github.com/Neccolini/RecSimu/cmd/rec"
 	"github.com/Neccolini/RecSimu/cmd/utils"
+	"github.com/thoas/go-funk"
 )
 
 type SimulationConfig struct {
@@ -34,7 +35,7 @@ func NewSimulationConfig(nodeNum int, cycle int, adjacencyList map[string][]stri
 	config.injectionTable = iTable
 
 	for id, nType := range nodesType {
-		config.nodes[id], _ = node.NewNode(id, nType) // todo エラー処理？
+		config.nodes[id], _ = node.NewNode(id, nType, false) // todo エラー処理？
 	}
 
 	return config
@@ -61,20 +62,32 @@ func (config *SimulationConfig) Simulate() error {
 	averageLatency := 0.0
 	totalPackets := 0
 	failedPackets := 0
+	maxRecLatency := 0
+	recLatencySum := 0.0
+	recCnt := 0
 	for _, node := range config.nodes {
-		averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
+		if node.Performance.TotalPacketNum != 0 {
+			averageLatency += float64(node.Performance.TotalLatency) / float64(node.Performance.TotalPacketNum)
+		}
 		totalPackets += node.Performance.TotalPacketNum
 		failedPackets += node.Performance.FailedPacketNum()
 		if len(node.Performance.InjectionId2Cycle) != 0 {
 			debug.Debug.Printf("%s: %v\n", node.Id(), node.Performance.InjectionId2Cycle)
 		}
 		if node.Performance.RecResult() != nil {
-			fmt.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
+			debug.Debug.Printf("reconfiguration: %s %v\n", node.Id(), node.Performance.RecResult())
+			maxRecLatency = utils.Max(maxRecLatency, funk.MaxInt(node.Performance.RecResult()))
+			recLatencySum += float64(funk.SumInt(node.Performance.RecResult()))
+			recCnt += len(node.Performance.RecResult())
 		}
 	}
 	fmt.Printf("total packets: %d / %d\n", totalPackets-failedPackets, totalPackets)
+	fmt.Println(averageLatency)
 	fmt.Printf("average latency: %.5f [cycle]\n", averageLatency/float64(config.nodeNum))
-
+	if maxRecLatency != 0 {
+		fmt.Printf("mean reconfiguration latency %.5f [cycle]\n", recLatencySum/float64(recCnt))
+		fmt.Printf("max reconfiguration latency %d [cycle]\n", maxRecLatency)
+	}
 	return nil
 }
 
@@ -181,10 +194,16 @@ func (config *SimulationConfig) deliverMessages() {
 
 func (config *SimulationConfig) changeNode(cycle int) {
 	for _, recInfo := range config.recInfo[cycle] {
+		if recInfo.Operation == rec.Remove {
+			continue
+		}
+		config.adjacencyList[recInfo.Id] = make([]string, 0, len(recInfo.AdjacencyList))
+	}
+	for _, recInfo := range config.recInfo[cycle] {
 		switch recInfo.Operation {
 		case rec.Add, rec.Rejoin:
 			{
-				config.AddNode(recInfo)
+				config.AddNode(recInfo, cycle)
 			}
 		case rec.Remove:
 			{
@@ -194,13 +213,26 @@ func (config *SimulationConfig) changeNode(cycle int) {
 	}
 }
 
-func (config *SimulationConfig) AddNode(recInfo rec.RecInfo) {
-	config.adjacencyList[recInfo.Id] = make([]string, 0, len(recInfo.AdjacencyList))
+func (config *SimulationConfig) AddNode(recInfo rec.RecInfo, cycle int) {
 	for _, aId := range recInfo.AdjacencyList {
-		config.adjacencyList[recInfo.Id] = append(config.adjacencyList[recInfo.Id], aId)
-		config.adjacencyList[aId] = append(config.adjacencyList[aId], recInfo.Id)
+		//
+		if !utils.SearchList(config.adjacencyList[recInfo.Id], aId) {
+			config.adjacencyList[recInfo.Id] = append(config.adjacencyList[recInfo.Id], aId)
+		}
+
+		//
+		if !utils.SearchList(config.adjacencyList[aId], recInfo.Id) {
+			config.adjacencyList[aId] = append(config.adjacencyList[aId], recInfo.Id)
+		}
 	}
-	config.nodes[recInfo.Id], _ = node.NewNode(recInfo.Id, recInfo.NodeType)
+
+	config.nodes[recInfo.Id], _ = node.NewNode(recInfo.Id, recInfo.NodeType, true)
+	config.nodes[recInfo.Id].Performance.RecStart(cycle)
+	for _, node := range config.nodes {
+		if !node.Alive() {
+			config.nodes[node.Id()].Performance.RecStart(cycle)
+		}
+	}
 }
 
 func (config *SimulationConfig) RemoveNode(id string, cycle int) {

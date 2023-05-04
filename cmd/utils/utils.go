@@ -32,3 +32,12 @@ func Max[T Comparable](a, b T) T {
 		return a
 	}
 }
+
+func SearchList[T comparable](arr []T, target T) bool {
+	for _, val := range arr {
+		if val == target {
+			return true
+		}
+	}
+	return false
+}
