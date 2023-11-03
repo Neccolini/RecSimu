@@ -38,12 +38,19 @@ func GenerateNetwork(config Config, jsonFilePath string, cycles int, rate float6
 		}
 	}
 
-	nodes := map[string]string{
-		"0": "Coordinator",
+	nodes := []map[string]string{
+		{
+			"node_id":   "0",
+			"node_type": "coordinator",
+		},
 	}
 
 	for i := 1; i < nodeNum; i++ {
-		nodes[strconv.Itoa(i)] = "Router"
+		nodes = append(nodes, map[string]string{
+			"node_id":   strconv.Itoa(i),
+			"node_type": "router",
+		})
+		// nodes[strconv.Itoa(i)] = "router"
 	}
 
 	injections := injection.GenerateInjectionPackets(nodeNum, cycles, rate)

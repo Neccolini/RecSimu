@@ -9,11 +9,11 @@ import (
 )
 
 type JsonOutput struct {
-	Num         int                   `json:"num"`
-	Nodes       map[string]string     `json:"nodes"`
-	Adjacencies map[string][]string   `json:"adjacencies"`
-	Cycles      int                   `json:"cycles"`
-	Injections  []injection.Injection `json:"injections"`
+	Num         int                   `json:"node_num"`
+	Nodes       []map[string]string   `json:"nodes"`
+	Adjacencies map[string][]string   `json:"neighbors"`
+	Cycles      int                   `json:"total_cycles"`
+	Injections  []injection.Injection `json:"packets"`
 }
 
 type Node struct {

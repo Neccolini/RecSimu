@@ -3,11 +3,11 @@ package injection
 import "fmt"
 
 type Injection struct {
-	InjectionId string `json:"injectionId"`
-	Cycle       int    `json:"cycle"`
-	FromId      string `json:"fromId"`
-	DistId      string `json:"distId"`
-	Data        string `json:"data"`
+	InjectionId string `json:"-"`
+	Cycle       int    `json:"cycle_num"`
+	FromId      string `json:"src_id"`
+	DistId      string `json:"dest_id"`
+	Data        string `json:"msg"`
 }
 
 type InjectionTable struct {
